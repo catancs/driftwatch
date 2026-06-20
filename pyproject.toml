@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "driftwatch"
+version = "0.1.0.dev0"
+description = "Continuous, cross-engine reconciliation of derived data against its source of truth. Trust, but verify your CDC / warehouse / materialized-view pipelines."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+keywords = ["data-quality", "data-observability", "reconciliation", "cdc", "data-diff", "drift"]
+authors = [{ name = "driftwatch contributors" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Topic :: Database",
+]
+dependencies = [
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.1"]
+snowflake = ["snowflake-connector-python>=3.6"]
+duckdb = ["duckdb>=0.10"]
+dev = [
+  "pytest>=8.0",
+  "duckdb>=0.10",
+]
+
+[project.scripts]
+driftwatch = "driftwatch.cli:main"
+
+# Connector plugin seam: built-ins register here; third-party packages can publish
+# their own connector by adding an entry point in this group. The registry resolves
+# a config's `driver:` name against these (built-ins + installed third-party).
+[project.entry-points."driftwatch.connectors"]
+postgres = "driftwatch.connectors.postgres:PostgresConnector"
+duckdb = "driftwatch.connectors.duckdb:DuckDBConnector"
+snowflake = "driftwatch.connectors.snowflake:SnowflakeConnector"
+memory = "driftwatch.connectors.memory:MemoryConnector"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/driftwatch"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
