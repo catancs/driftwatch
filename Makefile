@@ -17,3 +17,6 @@ docker:    ## build the container image
 
 figures:   ## regenerate the README figures (needs matplotlib)
 	python3 docs/render_figures.py
+
+demo:      ## run the live Postgres + DuckDB demo (needs Docker)
+	bash examples/demo.sh
