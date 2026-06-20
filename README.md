@@ -7,11 +7,22 @@ search index, read replica, or materialized view still matches its source of tru
 catch silent drift *before* it reaches a dashboard or an auditor.
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org)
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org)
 [![tests](https://img.shields.io/badge/tests-62%20passing-brightgreen.svg)](#development)
 [![status](https://img.shields.io/badge/status-alpha-orange.svg)](#status)
 
+<br/>
+
+**Works with**
+
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-source%20of%20truth-336791?logo=postgresql&logoColor=white)](#connectors)
+[![Snowflake](https://img.shields.io/badge/Snowflake-derived-29B5E8?logo=snowflake&logoColor=white)](#connectors)
+[![DuckDB](https://img.shields.io/badge/DuckDB-local%20stand--in-FFF000?logo=duckdb&logoColor=black)](#connectors)
+[![+ your warehouse](https://img.shields.io/badge/%2B-your%20warehouse-lightgrey)](#adding-a-connector)
+
 </div>
+
+---
 
 **Derived data drifts silently** — a dropped CDC event, an off-by-one in incremental view
 maintenance, a half-run backfill, an unhandled schema change. Today that's caught by a
@@ -38,40 +49,50 @@ driftwatch: orders — DRIFT
 
 ---
 
-## Install
+## Quickstart
 
-### From source
+Five steps from nothing to a reconciliation check wired into CI.
 
-The path that works today (the package isn't on PyPI yet):
+**1. Install** it (pick only the connectors you need — the core stays tiny):
 
 ```bash
 git clone https://github.com/catancs/driftwatch && cd driftwatch
-pip install ".[postgres,snowflake,duckdb]"   # pick only the connectors you need
-driftwatch --help
+pip install ".[postgres,snowflake,duckdb]"      # PyPI release coming soon
 ```
 
-Connectors are **optional extras** — the core stays tiny. Install just what you use:
-`driftwatch[postgres]`, `driftwatch[snowflake]`, `driftwatch[duckdb]` (the local stand-in).
-
-### PyPI & Homebrew
-
-Planned for the first tagged release:
+**2. Scaffold a config:**
 
 ```bash
-pip install "driftwatch[postgres,snowflake]"   # coming soon
+driftwatch init > driftwatch.yaml
 ```
 
-## Use — one verb, a config file
+**3. Point it at your databases.** Open `driftwatch.yaml` and set the `source` (your system of
+record) and `target` (the derived copy), the `primary_key`, and a `watermark_column` so lag
+isn't mistaken for drift. Credentials come from the environment via `${VAR}` — never hardcode them.
+
+**4. Run it:**
 
 ```bash
-driftwatch init > driftwatch.yaml                 # scaffold a config
-driftwatch run -c driftwatch.yaml                 # reconcile; exit 0/1/2/3
-driftwatch run -c driftwatch.yaml --format json   # machine-readable report (for CI / alerting)
-driftwatch run -c driftwatch.yaml --only orders   # run a single named comparison
+driftwatch run -c driftwatch.yaml
 ```
 
-The whole tool is driven by one declarative config. Secrets come from the environment via
-`${VAR}` — never put credentials in the file:
+Read the exit code — it's the whole contract: **`0`** in sync · **`1`** drift (the diverging
+keys are printed) · **`2`** operational error · **`3`** bad config.
+
+**5. Wire it into CI or cron** so drift fails a build instead of surprising a user:
+
+```yaml
+# .github/workflows/reconcile.yml (or any scheduler)
+- run: driftwatch run -c driftwatch.yaml   # non-zero exit blocks the pipeline
+```
+
+> [!TIP]
+> **No cloud handy?** Set both `source` and `target` to `driver: duckdb` with local file
+> paths and watch the whole pipeline work offline in under a minute.
+
+## Configuration
+
+One declarative file drives everything. Secrets are interpolated from the environment:
 
 ```yaml
 connections:
@@ -94,8 +115,8 @@ comparisons:
     recheck: { delay: 60s, rounds: 1 }
 ```
 
-Want a zero-cloud trial? Point both `source` and `target` at local DuckDB files
-(`driver: duckdb`) and you can see the whole pipeline work in under a minute.
+Run one comparison at a time with `--only orders`, or get a machine-readable report for
+alerting with `--format json`.
 
 ## How it works
 
@@ -107,12 +128,12 @@ Two ideas do the heavy lifting:
   nothing, and a sparse drift is located in `O(log n)` round-trips. (In the test suite, a
   6,000-row table with 3 drifted rows touches just **4.6%** of rows.)
 - **Lag-aware comparison.** A naive diff flags every row the warehouse hasn't caught up on
-  yet — useless noise. `driftwatch` captures a **watermark cutoff** once at run start and
-  only compares rows old enough to have propagated, then runs a bounded **recheck pass** on
-  the survivors to drop anything that reconciled in the meantime. Two independent safety nets,
-  so it stays quiet until something is *actually* wrong.
+  yet — useless noise. `driftwatch` captures a **watermark cutoff** once at run start and only
+  compares rows old enough to have propagated, then runs a bounded **recheck pass** on the
+  survivors to drop anything that reconciled meanwhile. Two independent safety nets, so it
+  stays quiet until something is *actually* wrong.
 
-Read-only on both sides; a run is deterministic and idempotent.
+Read-only on both sides; every run is deterministic and idempotent.
 Full design: [`docs/superpowers/specs/2026-06-20-driftwatch-design.md`](docs/superpowers/specs/2026-06-20-driftwatch-design.md).
 
 ## What it catches
@@ -158,13 +179,29 @@ match `MemoryConnector` over the same data — is the gate every connector must 
 The empty cell everyone else leaves — *continuous, cross-engine, lag-aware reconciliation as
 an open-source library* — is the one `driftwatch` fills.
 
+## Credit — built on Kleppmann's "Trust, but Verify"
+
+driftwatch is a concrete implementation of a future-work idea from **Martin Kleppmann**'s
+[*Designing Data-Intensive Applications*](https://dataintensive.net) (2nd ed., 2026, with
+**Chris Riccomini**). In the final chapter on **Aiming for Correctness**, he argues that
+mature data systems should stop *assuming* derived data is correct and instead **continually
+verify their own integrity** — his "**trust, but verify**" principle — making reconciliation
+and auditability first-class concerns rather than afterthoughts.
+
+That idea never had a good open-source home for the CDC/warehouse era; everyone hand-rolls a
+one-off reconciliation job. driftwatch is the missing piece, built directly on his suggestion:
+**continuous, cross-engine, lag-aware verification of derived data against its source of truth.**
+
+> 📖 If you find this useful, read the book — the "why" behind driftwatch is Chapter 12 / 13
+> of DDIA. The credit for the idea is Kleppmann & Riccomini's; the implementation is ours.
+
 ## Development
 
 ```bash
 pip install ".[dev,duckdb]" && pytest -q     # 62 passing, 3 skipped (gated live DBs)
 ```
 
-The test suite runs fully offline against DuckDB; Postgres conformance runs against a service
+The suite runs fully offline against DuckDB; Postgres conformance runs against a service
 container, and Snowflake tests are gated on credentials. A GitHub Actions workflow ships at
 [`docs/ci-workflow.yml`](docs/ci-workflow.yml) — move it to `.github/workflows/ci.yml` to
 enable CI (that path needs a token with the `workflow` scope).
