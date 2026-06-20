@@ -14,7 +14,7 @@ checksums and ``{key: row_hash}`` maps across:
 Connection: set ``DRIFTWATCH_TEST_PG_DSN`` (e.g.
 ``postgresql://user:pass@localhost:5432/db``) or rely on standard libpq env vars
 (``PGHOST``/``PGUSER``/``PGPASSWORD``/``PGDATABASE``/...). If psycopg v3 is not
-installed, or no PostgreSQL is reachable, the test SKIPS cleanly and says so — it never
+installed, or no PostgreSQL is reachable, the test SKIPS cleanly and says so - it never
 fakes a pass.
 
 Runnable two ways:
@@ -73,7 +73,7 @@ def _connect():
             conn = PostgresConnector()  # libpq reads PG* env vars
         else:
             # No configuration at all: try a plain localhost connection as a courtesy,
-            # but treat failure as a skip (not a failure) — there may simply be no PG.
+            # but treat failure as a skip (not a failure) - there may simply be no PG.
             conn = PostgresConnector()
         return conn
     except Exception as exc:  # psycopg.OperationalError and friends
@@ -176,7 +176,7 @@ _INSERT_COLS = [
 ]
 
 # Columns compared (everything except the pk). Sorted to match how the engine resolves
-# "*" — but here we pass them explicitly so both sides hash the same set in the same
+# "*" - but here we pass them explicitly so both sides hash the same set in the same
 # order.
 _COMPARE = ["region", "flag", "qty", "price", "ratio", "ts", "d", "blob", "label", "updated_at"]
 _FP = 12
@@ -268,7 +268,7 @@ def _run_conformance(pg, table):
                    mem.fetch_row_hashes(table, pk, _COMPARE, rng, None, None, _FP))
 
     # Explicit half-open check: id 5 (lo) included, id at hi excluded.
-    half = KeyRange(lo=(2,), hi=(5,))  # ids 2,3,4 — NOT 5
+    half = KeyRange(lo=(2,), hi=(5,))  # ids 2,3,4 - NOT 5
     got = pg.fetch_row_hashes(table, pk, _COMPARE, half, None, None, _FP)
     assert sorted(got.keys()) == [(2,), (3,), (4,)], sorted(got.keys())
 

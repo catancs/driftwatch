@@ -1,4 +1,4 @@
-"""Snowflake connector — the derived/warehouse side of a comparison.
+"""Snowflake connector - the derived/warehouse side of a comparison.
 
 Translates the dialect-free :class:`~driftwatch.connector.Connector` surface into
 native Snowflake SQL, reproducing the :mod:`driftwatch.hashing` contract entirely
@@ -12,19 +12,19 @@ Unquoted identifiers fold to UPPERCASE in Snowflake. ``columns()`` therefore ret
 lowercased names (matching the engine's lowercased ``compare_columns: "*"`` resolution),
 and every column reference in generated SQL is emitted as a double-quoted *uppercased*
 identifier. That makes column resolution deterministic regardless of how the table was
-created — as long as the table itself was created with default (unquoted/uppercase)
+created - as long as the table itself was created with default (unquoted/uppercase)
 identifiers, which is the overwhelmingly common case. Mixed-case quoted DDL is a known
 limitation, documented at ``columns()``.
 
 The hex->int step of the contract
 ---------------------------------
-The Python contract is ``int(md5_hex[:15], 16)`` — the integer value of the first 15
+The Python contract is ``int(md5_hex[:15], 16)`` - the integer value of the first 15
 hex characters of the MD5 digest (60 bits). Snowflake reproduces this *exactly* with
 ``TO_DECIMAL(LEFT(MD5_HEX(payload), 15), 'XXXXXXXXXXXXXXX')``: the ``'X'`` format model
 parses a hex string into a fixed-point ``NUMBER``. 15 hex nibbles max out at
 ``0xFFFFFFFFFFFFFFF`` = 1152921504606846975 (19 decimal digits), well within
 ``NUMBER(38,0)``, so there is no overflow and no precision loss. This is a true,
-bit-for-bit match of the contract — *no* contract adjustment is required for the hash.
+bit-for-bit match of the contract - *no* contract adjustment is required for the hash.
 (See module-level notes / the task report for the one genuine best-effort edge: floats.)
 """
 
@@ -137,7 +137,7 @@ class SnowflakeConnector(Connector):
           * BOOLEAN         -> '1' / '0'
           * INTEGER         -> base-10 via TO_VARCHAR
           * fixed NUMBER    -> trailing-zeros trimmed
-          * FLOAT/DOUBLE    -> %.<p>g  (BEST EFFORT — see report)
+          * FLOAT/DOUBLE    -> %.<p>g  (BEST EFFORT - see report)
           * TIMESTAMP*      -> UTC 'YYYY-MM-DD HH24:MI:SS.FF6'
           * DATE            -> 'YYYY-MM-DD'
           * BINARY          -> lowercase hex
@@ -315,7 +315,7 @@ class SnowflakeConnector(Connector):
         columns present in sampled rows). Names are lowercased to match the engine's
         ``compare_columns: "*"`` resolution. Snowflake stores unquoted-DDL identifiers
         upper-cased; lowercasing them yields the canonical form. NOTE: tables created with
-        case-sensitive *quoted* mixed-case identifiers are a documented limitation — their
+        case-sensitive *quoted* mixed-case identifiers are a documented limitation - their
         names would still be lowercased here and may not round-trip to the same physical
         column when re-quoted-upper in SQL.
         """

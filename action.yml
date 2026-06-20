@@ -1,0 +1,29 @@
+name: "driftwatch"
+description: "Reconcile a derived dataset against its source of truth and fail the job on drift."
+branding:
+  icon: "check-circle"
+  color: "blue"
+
+inputs:
+  config:
+    description: "Path to the driftwatch config file."
+    required: true
+  args:
+    description: "Extra arguments for `driftwatch run` (for example: --format json --only orders)."
+    required: false
+    default: ""
+  extras:
+    description: "Connector extras to install (for example: postgres,snowflake)."
+    required: false
+    default: "postgres,snowflake,duckdb"
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - shell: bash
+      run: pip install "driftwatch[${{ inputs.extras }}] @ git+https://github.com/catancs/driftwatch"
+    - shell: bash
+      run: driftwatch run -c "${{ inputs.config }}" ${{ inputs.args }}

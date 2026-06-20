@@ -22,7 +22,7 @@ from .models import DriftReport
 from .reporter import exit_code, render_json, render_text
 
 SAMPLE_CONFIG = """\
-# driftwatch config — reconcile a derived dataset against its source of truth.
+# driftwatch config - reconcile a derived dataset against its source of truth.
 # Secrets come from the environment via ${VAR}; never put credentials in this file.
 connections:
   source:

@@ -11,7 +11,7 @@ Pipeline:
      The primary key is always part of the row, so every row hash is distinct, which
      makes the order-independent SUM aggregate collision-safe.
   3. segment checksum = ``SUM(row_hash) mod 2**63`` over the rows in the segment.
-     SUM is order-independent, so neither side has to sort — each engine computes it
+     SUM is order-independent, so neither side has to sort - each engine computes it
      natively and only the integer digest crosses the wire.
 """
 

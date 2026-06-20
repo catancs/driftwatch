@@ -77,7 +77,7 @@ def _drift_set(report):
 
 def test_e2e_in_sync_then_drift():
     if not HAVE_DUCKDB:
-        print("SKIP test_e2e — duckdb not installed (pip install driftwatch[duckdb])")
+        print("SKIP test_e2e - duckdb not installed (pip install driftwatch[duckdb])")
         return
     with tempfile.TemporaryDirectory() as d:
         src = os.path.join(d, "src.duckdb")
@@ -116,7 +116,7 @@ def test_e2e_in_sync_then_drift():
 
 def test_e2e_config_error_exit_3():
     if not HAVE_DUCKDB:
-        print("SKIP test_e2e_config_error — duckdb not installed")
+        print("SKIP test_e2e_config_error - duckdb not installed")
         return
     with tempfile.TemporaryDirectory() as d:
         cfg = os.path.join(d, "bad.yaml")

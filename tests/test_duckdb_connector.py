@@ -4,7 +4,7 @@ The MemoryConnector is the canonical Python implementation of the hashing contra
 This test loads *identical* data into both a MemoryConnector and an in-memory
 DuckDBConnector and asserts that ``checksum`` (count AND checksum), ``fetch_row_hashes``,
 ``fetch_row_hashes_for_keys``, ``pk_bounds``, and ``columns`` agree exactly across a
-variety of types, ranges, watermark cutoffs, and half-open boundaries — including a
+variety of types, ranges, watermark cutoffs, and half-open boundaries - including a
 composite-key table.
 
 If the two connectors disagree on a single digest, the contract is not reproduced and

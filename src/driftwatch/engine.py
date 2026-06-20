@@ -35,8 +35,8 @@ from .models import Checksum, DriftKey, DriftKind, DriftReport, Key, KeyRange
 class EngineError(Exception):
     """Wraps an operational failure encountered during a comparison.
 
-    The engine does not *need* to raise this — re-raising the connector's own
-    exception is equally valid — but it gives the CLI a single type to catch when
+    The engine does not *need* to raise this - re-raising the connector's own
+    exception is equally valid - but it gives the CLI a single type to catch when
     it wants to attribute the failure to the engine layer. ``in_sync`` is never
     reported True when an error occurs.
     """

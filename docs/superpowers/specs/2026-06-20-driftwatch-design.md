@@ -1,11 +1,11 @@
-# driftwatch — design spec
+# driftwatch - design spec
 
 **Status:** approved (brainstorm, 2026-06-20). Working name `driftwatch` is a placeholder; renameable.
 
 ## Problem
 
-Every "modern data stack" maintains *derived* copies of a source of truth — a warehouse
-mirror, a search index, a cache, a read replica, a materialized view — fed by CDC or ETL.
+Every "modern data stack" maintains *derived* copies of a source of truth - a warehouse
+mirror, a search index, a cache, a read replica, a materialized view - fed by CDC or ETL.
 These copies **drift silently**: a dropped event, an off-by-one in incremental view
 maintenance, a half-run backfill, a schema change. Today drift is caught by a customer
 complaint or an auditor, not by tooling. The open-source category for "is my data correct?"
@@ -19,11 +19,11 @@ This maps onto DDIA (2nd ed.) Ch. 13 "Aiming for Correctness" → **"Trust, but 
 
 - **Pair:** Postgres (source of truth) → data warehouse (derived). First real warehouse
   adapter: **Snowflake**. Local dev/test stand-in: **DuckDB** (free, embeddable, SQL,
-  columnar — behaves like a mini-warehouse, zero cloud creds).
+  columnar - behaves like a mini-warehouse, zero cloud creds).
 - **Runtime:** a **CLI / CI check** wrapping a reusable **engine core**. One command runs one
   comparison, prints a report, exits non-zero on confirmed drift. The always-on **daemon** is
   an explicit later wrapper around the same engine (out of scope for v1).
-- **Algorithm:** **recursive hash-segmentation** (the `data-diff`/`reladiff` approach) — the
+- **Algorithm:** **recursive hash-segmentation** (the `data-diff`/`reladiff` approach) - the
   one engine also covers full-scan (`fanout=1`) and sampling (early stop) as settings.
 - **Lag handling:** **watermark cutoff + recheck confirmation** (two independent safety nets).
 - **Packaging:** `pip install driftwatch`, console script, connectors as optional extras and
@@ -58,9 +58,9 @@ config.yaml → Config (validate, fail fast)
 
 | Unit | Responsibility | Depends on | Owner |
 |---|---|---|---|
-| `Connector` (ABC + registry) | `pk_bounds`, `checksum(range,cutoff)→(count,checksum)`, `fetch_row_hashes(range,cutoff)`, `fetch_row_hashes_for_keys(keys)` — native dialect | DB driver | **foundation (hand-written)** |
-| Hashing contract | canonical per-type string → md5 → int; order-independent segment aggregate; identical across dialects | — | **foundation** |
-| `models` | `DriftKind`, `DriftKey`, `KeyRange`, `Segment`, `DriftReport` | — | **foundation** |
+| `Connector` (ABC + registry) | `pk_bounds`, `checksum(range,cutoff)→(count,checksum)`, `fetch_row_hashes(range,cutoff)`, `fetch_row_hashes_for_keys(keys)` - native dialect | DB driver | **foundation (hand-written)** |
+| Hashing contract | canonical per-type string → md5 → int; order-independent segment aggregate; identical across dialects | - | **foundation** |
+| `models` | `DriftKind`, `DriftKey`, `KeyRange`, `Segment`, `DriftReport` | - | **foundation** |
 | `Config` | parse+validate YAML; env-interpolated secrets | pyyaml | **foundation** |
 | `MemoryConnector` | in-memory reference impl of `Connector` over dicts, using the Python hashing reference | hashing, models | **foundation** |
 | Engine + LagHandler | recursive segmentation; watermark cutoff threaded into every query; recheck pass | Connector iface | agent |
@@ -75,11 +75,11 @@ config.yaml → Config (validate, fail fast)
 - **Per-row hash** = `md5( FIELD_SEP.join(canonical(pk…), canonical(col…)) )`, taken as the
   first 60 bits → int. PK is part of every row hash → all row hashes distinct → safe to
   aggregate with an order-independent op.
-- **Segment checksum** = `SUM(row_hash) mod 2**63` — order-independent, so neither side sorts;
+- **Segment checksum** = `SUM(row_hash) mod 2**63` - order-independent, so neither side sorts;
   each engine computes it natively and only the digest crosses the wire.
 - **`canonical(value)`** (must be reproducible in Postgres, DuckDB, Snowflake, and the Python
   reference): NULL→`\N` sentinel; bool→`0`/`1`; int→base-10; decimal→fixed scale, trailing
-  zeros trimmed; float→`%.{FLOAT_PRECISION}g` (KNOWN SHARP EDGE — configurable precision,
+  zeros trimmed; float→`%.{FLOAT_PRECISION}g` (KNOWN SHARP EDGE - configurable precision,
   documented as best-effort); timestamp→UTC ISO at microsecond precision; bytes→lowercase hex;
   text→UTF-8 as-is.
 - **Source of truth:** the Python reference in `hashing.py`. A **conformance test** asserts each

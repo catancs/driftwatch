@@ -1,4 +1,4 @@
-"""DuckDB connector — the local test/e2e warehouse stand-in.
+"""DuckDB connector - the local test/e2e warehouse stand-in.
 
 This connector reproduces the :mod:`driftwatch.hashing` contract **in SQL** so that a
 DuckDB table yields byte-for-byte identical row hashes and segment checksums to the
@@ -14,7 +14,7 @@ Contract reproduction notes (see ``tests/test_duckdb_connector.py`` for the proo
   expression per column type, mirroring :func:`driftwatch.hashing.canonical`:
 
   - NULL -> ``'\\N'`` via an outer ``COALESCE`` (NOT via ``concat_ws`` NULL-skipping,
-    which would silently drop the separator — see below).
+    which would silently drop the separator - see below).
   - bool -> ``'1'`` / ``'0'``
   - integers -> base-10 text (the default ``::VARCHAR`` cast)
   - DECIMAL/NUMERIC -> fixed text with trailing zeros (and a bare ``.``) trimmed
@@ -28,14 +28,14 @@ Contract reproduction notes (see ``tests/test_duckdb_connector.py`` for the proo
 
 * The row payload is ``concat_ws(chr(31), COALESCE(canon, '\\N'), ...)``. ``concat_ws``
   *skips NULL arguments entirely*, which would corrupt the separator layout, so every
-  field is wrapped in ``COALESCE(..., '\\N')`` BEFORE it reaches ``concat_ws`` —
+  field is wrapped in ``COALESCE(..., '\\N')`` BEFORE it reaches ``concat_ws`` -
   guaranteeing no argument is ever NULL.
 
-* row hash = ``('0x' || substr(md5(payload), 1, 15))::UBIGINT`` — the integer value of
+* row hash = ``('0x' || substr(md5(payload), 1, 15))::UBIGINT`` - the integer value of
   the first 15 hex chars (60 bits) of the MD5 digest, identical to Python's
   ``int(md5_hex[:15], 16)``. UBIGINT (64-bit unsigned) holds the full 60-bit value.
 
-* segment checksum = ``SUM(row_hash::HUGEINT) % 9223372036854775808`` — DuckDB promotes
+* segment checksum = ``SUM(row_hash::HUGEINT) % 9223372036854775808`` - DuckDB promotes
   the SUM to HUGEINT (128-bit) so it cannot overflow, and the modulo matches Python's
   ``segment_checksum`` (``SUM mod 2**63``).
 
@@ -121,13 +121,13 @@ class DuckDBConnector(Connector):
 
         ``col_ident`` is the already-quoted column reference; ``data_type`` is the
         DuckDB ``information_schema`` type string. The result may be NULL when the
-        underlying value is NULL — the caller is responsible for the outer COALESCE to
+        underlying value is NULL - the caller is responsible for the outer COALESCE to
         the NULL sentinel.
         """
         t = data_type.upper()
 
         # BOOLEAN -> '1'/'0' (matches Python: bool before int). A NULL boolean must stay
-        # NULL so the caller's COALESCE maps it to the sentinel — a bare CASE WHEN/ELSE
+        # NULL so the caller's COALESCE maps it to the sentinel - a bare CASE WHEN/ELSE
         # would collapse NULL to '0', so guard with an explicit IS NULL -> NULL branch.
         if t.startswith("BOOLEAN"):
             return (
@@ -285,7 +285,7 @@ class DuckDBConnector(Connector):
         params: List[Any] = []
         where = self._where(self._cutoff_predicate(watermark_column, cutoff, params))
         # MIN/MAX over a *tuple* isn't directly expressible; fetch the lexicographically
-        # first/last key. The direction must be applied to EVERY key column — a bare
+        # first/last key. The direction must be applied to EVERY key column - a bare
         # "ORDER BY a, b DESC" sorts only b descending, which gives the wrong max for a
         # composite key. Build per-column "<col> ASC|DESC".
         order_asc = ", ".join(f"{i} ASC" for i in idents)

@@ -29,6 +29,7 @@ dev = [
   "pytest>=8.0",
   "duckdb>=0.10",
 ]
+figures = ["matplotlib>=3.7"]
 
 [project.scripts]
 driftwatch = "driftwatch.cli:main"

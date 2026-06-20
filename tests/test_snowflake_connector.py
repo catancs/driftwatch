@@ -1,4 +1,4 @@
-"""Snowflake connector conformance test — GATED on live credentials.
+"""Snowflake connector conformance test - GATED on live credentials.
 
 This test verifies that :class:`SnowflakeConnector` reproduces the
 :mod:`driftwatch.hashing` contract *in-engine*, by comparing its outputs against
@@ -10,7 +10,7 @@ It is entirely gated: it SKIPS cleanly (and loudly) unless BOTH
   2. the live-connection environment variables are present
      (at minimum ``SNOWFLAKE_ACCOUNT``, ``SNOWFLAKE_USER``, ``SNOWFLAKE_PASSWORD``).
 
-Without a live Snowflake, conformance is UNVERIFIED — the test reports that and
+Without a live Snowflake, conformance is UNVERIFIED - the test reports that and
 skips rather than fabricating a pass.
 
 Runnable two ways, like ``tests/test_foundation.py``:
@@ -222,7 +222,7 @@ def test_snowflake_detects_change():
 
 if __name__ == "__main__":
     if GATED_OUT:
-        print("SKIP test_snowflake_connector — UNVERIFIED:", _skip_reason())
+        print("SKIP test_snowflake_connector - UNVERIFIED:", _skip_reason())
         print("  (set %s + install driftwatch[snowflake] to run live)" % ", ".join(_REQUIRED_ENV))
         sys.exit(0)
     failures = 0

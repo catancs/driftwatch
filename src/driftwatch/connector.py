@@ -24,7 +24,7 @@ class Connector(ABC):
     All row hashing MUST follow ``driftwatch.hashing`` so digests match across backends.
     """
 
-    #: dialect name, e.g. "postgres" — set by subclasses, informational.
+    #: dialect name, e.g. "postgres" - set by subclasses, informational.
     driver: str = ""
 
     # Range semantics: ``pk_bounds`` returns an INCLUSIVE [min, max] range (hi is the

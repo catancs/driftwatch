@@ -8,9 +8,9 @@ convenience the CLI uses.
 Three exit codes are produced here (config errors are exit 3 and are the CLI's job,
 not the reporter's):
 
-* ``0`` — clean run, no error, in sync.
-* ``1`` — clean run, no error, confirmed drift.
-* ``2`` — operational error (``report.error`` is set); the verdict is meaningless.
+* ``0`` - clean run, no error, in sync.
+* ``1`` - clean run, no error, confirmed drift.
+* ``2`` - operational error (``report.error`` is set); the verdict is meaningless.
 
 We **never** report in-sync when an error is present: a set ``error`` always wins.
 """
@@ -53,7 +53,7 @@ def _json_scalar(value: Any) -> Any:
 
     JSON natively understands ``None``/``bool``/``int``/``float``/``str``; we pass
     those through unchanged so round-tripping is lossless where it can be. Everything
-    else a primary key might contain — ``date``, ``datetime``, ``Decimal``, ``bytes`` —
+    else a primary key might contain - ``date``, ``datetime``, ``Decimal``, ``bytes`` -
     is rendered to a stable string (reusing the cross-dialect ``canonical`` forms where
     they exist) so ``json.dumps`` can never choke on a key.
     """
@@ -127,7 +127,7 @@ def render_text(report: DriftReport, sample: int = 20) -> str:
     ``... and N more`` line when the list is truncated.
     """
     lines: List[str] = []
-    lines.append("driftwatch: {comparison} — {headline}".format(
+    lines.append("driftwatch: {comparison} - {headline}".format(
         comparison=report.comparison, headline=_headline(report)))
 
     if report.error is not None:

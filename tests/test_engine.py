@@ -22,7 +22,7 @@ from driftwatch.models import DriftKind  # noqa: E402
 
 
 def _no_sleep(_seconds: float) -> None:
-    """A sleep stub that never actually sleeps — keeps tests instant."""
+    """A sleep stub that never actually sleeps - keeps tests instant."""
     raise AssertionError("sleep should not be called when delay<=0 or rounds==0")
 
 
@@ -223,7 +223,7 @@ def test_large_table_sparse_drift_with_pruning():
     # With segmentation only the segments leading to the three divergences are
     # subdivided/fetched, so rows_compared must be a small fraction of n, and the
     # number of segments scanned must be far below n.
-    assert report.rows_compared < n, "no pruning happened — fetched everything"
+    assert report.rows_compared < n, "no pruning happened - fetched everything"
     assert report.rows_compared < 2000, (
         "expected sparse drift to prune most rows, compared %d" % report.rows_compared
     )

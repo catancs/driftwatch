@@ -11,3 +11,6 @@ venv/
 *.duckdb.wal
 .DS_Store
 .env
+
+# PNG previews of the README figures (the README embeds the committed SVGs)
+docs/img/*.png

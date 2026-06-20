@@ -1,4 +1,4 @@
-"""PostgreSQL connector — the source-of-truth side.
+"""PostgreSQL connector - the source-of-truth side.
 
 Translates the dialect-free :class:`~driftwatch.connector.Connector` surface into
 PostgreSQL SQL while reproducing the :mod:`driftwatch.hashing` contract *natively in
@@ -115,7 +115,7 @@ class PostgresConnector(Connector):
             return cache[table]
         # Pass the *quoted* identifier text (e.g. ``"My Schema"."Weird Table"``) as the
         # regclass argument so ``::regclass`` parses qualified / case-sensitive / spaced
-        # names correctly — the raw dotted string would fail regclass syntax. Unqualified
+        # names correctly - the raw dotted string would fail regclass syntax. Unqualified
         # names still resolve via search_path. This mirrors how ``_table_ident`` quotes
         # the same name everywhere else, so type lookup and the actual query agree.
         regclass_text = self._table_ident(table).as_string(self._conn)
@@ -174,7 +174,7 @@ class PostgresConnector(Connector):
         col = self._col(name)
         if typname in self._BOOL_TYPES:
             # IS TRUE/IS FALSE (not a bare ELSE) so a NULL boolean stays NULL and the
-            # outer COALESCE substitutes the sentinel — otherwise NULL would wrongly
+            # outer COALESCE substitutes the sentinel - otherwise NULL would wrongly
             # canonicalise as '0'.
             expr = _sql.SQL(
                 "CASE WHEN {col} IS TRUE THEN '1' "
@@ -213,7 +213,7 @@ class PostgresConnector(Connector):
         trailing-zero trim). ``float_precision`` is supplied as a bound named parameter.
         """
         # ``pg_temp.`` qualifies the call so it always resolves to this session's
-        # temporary helper — an *unqualified* name is NOT reliably searched in pg_temp
+        # temporary helper - an *unqualified* name is NOT reliably searched in pg_temp
         # for functions, yielding "function does not exist". The precision is cast to
         # integer explicitly so psycopg sending a small int as ``smallint`` can't break
         # overload resolution against the ``(double precision, integer)`` signature.
@@ -229,7 +229,7 @@ class PostgresConnector(Connector):
         """concat_ws(chr(31), canonical(c1), canonical(c2), ...) in engine order.
 
         ``concat_ws`` skips NULL arguments, but each canonical expression COALESCEs to
-        the sentinel first, so no argument is ever NULL — separator placement is exactly
+        the sentinel first, so no argument is ever NULL - separator placement is exactly
         the Python ``FIELD_SEP.join`` behaviour.
         """
         types = self._column_types(table)
@@ -545,7 +545,7 @@ class PostgresConnector(Connector):
 # A pure-SQL helper that reproduces CPython ``format(v, '.<p>g')`` for finite doubles.
 # Created once per session as a temporary function. NaN/Inf are not expected in keyed
 # comparison data; if they occur the function returns the libpq text form, which both
-# sides would still agree on through Python's ``str`` only by coincidence — documented
+# sides would still agree on through Python's ``str`` only by coincidence - documented
 # as a known sharp edge, same as the Python contract treats floats.
 _FLOAT_G_FUNCTION_SQL = r"""
 CREATE OR REPLACE FUNCTION pg_temp.driftwatch_float_g(v double precision, p integer)
