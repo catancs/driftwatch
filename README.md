@@ -46,8 +46,11 @@ pipeline, the same way you run a test.
 ## See it run
 
 This is a real run against a real Postgres and a real DuckDB warehouse, 1,000 orders loaded into
-both. Reproduce it yourself with `make demo` (needs Docker), or read the script in
-[`examples/demo.py`](examples/demo.py).
+both. Reproduce it yourself with `make demo` (needs Docker). The script is
+[`examples/demo.py`](examples/demo.py) and the full session log is committed at
+[`examples/demo-output.txt`](examples/demo-output.txt).
+
+<p align="center"><img src="docs/img/demo-terminal.svg" width="720" alt="Terminal screenshot of a real make demo session, Postgres to DuckDB. The copies match (IN SYNC, exit 0). The warehouse drifts and driftwatch names the changed, missing, and extra rows (DRIFT, exit 1). A fresh row is ignored with a grace window (IN SYNC) but reported missing without it (DRIFT)."></p>
 
 **The copies match.** All 1,000 rows are verified by reading none of them, because the checksums
 agree and the whole range is skipped.
@@ -176,7 +179,8 @@ Read the exit code: `0` in sync, `1` drift (the rows are printed), `2` connectio
 
 | You want | Do this |
 |---|---|
-| A Python install | `pip install ".[postgres,snowflake,duckdb]"` (PyPI release planned) |
+| pip install (works today) | `pip install "driftwatch[postgres,snowflake,duckdb] @ git+https://github.com/catancs/driftwatch.git"` |
+| pip install (after PyPI) | `pip install "driftwatch[postgres,snowflake]"` |
 | A container | `docker build -t driftwatch . && docker run --rm -v "$PWD/driftwatch.yaml:/app/driftwatch.yaml" driftwatch run -c driftwatch.yaml` |
 | A GitHub Action | `uses: catancs/driftwatch@v0` (see above) |
 | Make targets | `make install`, `make test`, `make run`, `make demo` |

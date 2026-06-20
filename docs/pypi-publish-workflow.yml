@@ -1,0 +1,30 @@
+# Publish to PyPI on a version tag, using PyPI Trusted Publishing (OIDC).
+# No API token is stored in the repo.
+#
+# To enable:
+#   1. Move this file to .github/workflows/publish.yml
+#      (that path needs a token with the `workflow` scope: `gh auth refresh -s workflow`).
+#   2. On PyPI, add this repo + workflow as a Trusted Publisher for the `driftwatch` project
+#      (https://docs.pypi.org/trusted-publishers/).
+#   3. Push a tag like `v0.1.0`. The release is built and uploaded automatically.
+
+name: publish
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # required for trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build
+      - run: python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,0 +1,79 @@
+starting Postgres (postgres:16) on port 55432 ...
+waiting for Postgres to accept connections ..... ready
+
+====================================================================
+ driftwatch demo: Postgres (source of truth) vs DuckDB (warehouse copy)
+====================================================================
+Loading 1000 orders into Postgres, then mirroring them into DuckDB.
+
+====================================================================
+ Scenario 1: the copies match
+====================================================================
+$ driftwatch run -c demo.yaml
+driftwatch: orders - IN SYNC
+  drift keys: 0 total (missing=0, extra=0, changed=0)
+  rows compared: 0
+  segments scanned: 1
+  candidates before recheck: 0
+  cutoff: -
+  duration: 0.026s
+exit code: 0
+
+====================================================================
+ Scenario 2: the warehouse drifts (a real pipeline bug)
+====================================================================
+Simulating: one row dropped, one value wrong, one phantom row left behind.
+$ driftwatch run -c demo.yaml
+driftwatch: orders - DRIFT
+  drift keys: 3 total (missing=1, extra=1, changed=1)
+  rows compared: 1001
+  segments scanned: 1
+  candidates before recheck: 3
+  cutoff: -
+  duration: 0.036s
+  diverging keys:
+    [changed] 250
+    [missing] 500
+    [extra] 99999
+exit code: 1
+
+Same run, machine-readable (for alerting and metrics):
+$ driftwatch run -c demo.yaml --format json
+{"candidates_before_recheck": 3, "comparison": "orders", "cutoff": null, "drift_by_kind": {"changed": 1, "extra": 1, "missing": 1}, "drift_keys": [{"key": [250], "kind": "changed"}, {"key": [500], "kind": "missing"}, {"key": [99999], "kind": "extra"}], "drift_total": 3, "duration_seconds": 0.03, "error": null, "in_sync": false, "rows_compared": 1001, "segments_scanned": 1}
+exit code: 1
+
+====================================================================
+ Scenario 3: a fresh row is still syncing (lag is not drift)
+====================================================================
+Reset the warehouse to match, then insert a brand-new order into Postgres only.
+
+With a 15-minute grace window, the not-yet-synced row is ignored:
+$ driftwatch run -c demo.yaml
+driftwatch: orders - IN SYNC
+  drift keys: 0 total (missing=0, extra=0, changed=0)
+  rows compared: 0
+  segments scanned: 1
+  candidates before recheck: 0
+  cutoff: 2026-06-20T22:08:01.374579+00:00
+  duration: 0.023s
+exit code: 0
+
+Without the grace window, the same row is reported as missing:
+$ driftwatch run -c demo.yaml
+driftwatch: orders - DRIFT
+  drift keys: 1 total (missing=1, extra=0, changed=0)
+  rows compared: 1001
+  segments scanned: 1
+  candidates before recheck: 1
+  cutoff: 2026-06-20T22:23:01.555834+00:00
+  duration: 0.033s
+  diverging keys:
+    [missing] 1001
+exit code: 1
+
+====================================================================
+ Result
+====================================================================
+Scenario 3 proves the difference from a plain diff:
+  with grace window  -> exit 0 (lag ignored, no false alarm)
+  without grace      -> exit 1 (the fresh row shows as missing)

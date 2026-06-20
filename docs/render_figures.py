@@ -16,7 +16,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch
 
 OUT = os.path.join(os.path.dirname(__file__), "img")
 os.makedirs(OUT, exist_ok=True)
@@ -204,9 +204,64 @@ def fig_architecture():
     save(fig, "architecture")
 
 
+def fig_terminal():
+    """A terminal-style screenshot of a real `make demo` session (postgres -> duckdb)."""
+    L = [
+        ("cmd", "$ make demo"),
+        ("dim", "starting Postgres (postgres:16) ... ready"),
+        ("dim", "loaded 1,000 orders into Postgres and the DuckDB warehouse"),
+        ("blank", ""),
+        ("cmt", "# 1) the copies match"),
+        ("cmd", "$ driftwatch run -c orders.yaml"),
+        ("ok", "driftwatch: orders - IN SYNC          (exit 0)"),
+        ("blank", ""),
+        ("cmt", "# 2) the warehouse drifts"),
+        ("cmd", "$ driftwatch run -c orders.yaml"),
+        ("bad", "driftwatch: orders - DRIFT            (exit 1)"),
+        ("key", "  drift keys: 3  (missing=1, extra=1, changed=1)"),
+        ("key", "    [changed] 250"),
+        ("key", "    [missing] 500"),
+        ("key", "    [extra]   99999"),
+        ("blank", ""),
+        ("cmt", "# 3) a fresh row is still syncing"),
+        ("cmd", "$ driftwatch run -c orders.yaml          # 15-min grace window"),
+        ("ok", "driftwatch: orders - IN SYNC          (exit 0, lag ignored)"),
+        ("cmd", "$ driftwatch run -c orders-no-grace.yaml"),
+        ("bad", "driftwatch: orders - DRIFT            (exit 1, [missing] 1001)"),
+    ]
+    colors = {"cmd": "#7ee787", "dim": "#8b949e", "cmt": "#6e7681",
+              "ok": "#3fb950", "bad": "#f85149", "key": "#c9d1d9"}
+    n = len(L)
+    fig_w, lh, bar = 8.8, 0.34, 0.5
+    fig_h = bar + n * lh + 0.3
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.axis("off")
+    ax.add_patch(FancyBboxPatch((0.006, 0.006), 0.988, 0.988,
+                                boxstyle="round,pad=0,rounding_size=0.02",
+                                facecolor="#0d1117", edgecolor="#30363d", lw=1.3, zorder=1))
+    bar_h = bar / fig_h
+    ax.plot([0.006, 0.994], [1 - bar_h, 1 - bar_h], color="#21262d", lw=1.0, zorder=2)
+    cy = 1 - bar_h / 2
+    for i, c in enumerate(["#ff5f56", "#ffbd2e", "#27c93f"]):
+        ax.add_patch(Circle((0.028 + i * 0.022, cy), 0.0075, color=c, zorder=3))
+    ax.text(0.5, cy, "driftwatch demo    postgres -> duckdb", ha="center", va="center",
+            color="#8b949e", fontsize=10, family="monospace", zorder=3)
+    y0 = 1 - bar_h - 0.012
+    for i, (kind, text) in enumerate(L):
+        if kind == "blank":
+            continue
+        y = y0 - (i + 0.6) * (lh / fig_h)
+        ax.text(0.028, y, text, ha="left", va="center", color=colors[kind],
+                fontsize=11, family="monospace", zorder=3)
+    save(fig, "demo-terminal")
+
+
 if __name__ == "__main__":
     fig_perf_rows()
     fig_perf_scaling()
     fig_compare_matrix()
     fig_architecture()
+    fig_terminal()
     print("done ->", OUT)

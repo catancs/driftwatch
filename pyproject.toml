@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "driftwatch"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Continuous, cross-engine reconciliation of derived data against its source of truth. Trust, but verify your CDC / warehouse / materialized-view pipelines."
 readme = "README.md"
 requires-python = ">=3.9"

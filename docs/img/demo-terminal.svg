@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="505.44pt" height="454.5936pt" viewBox="0 0 505.44 454.5936" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-06-21T00:24:27.901920</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.9.4, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 454.5936 
+L 505.44 454.5936 
+L 505.44 -0 
+L 0 -0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 19.96704 444.752438 
+L 485.47296 444.752438 
+Q 495.29376 444.752438 495.29376 435.948566 
+L 495.29376 18.645034 
+Q 495.29376 9.841162 485.47296 9.841162 
+L 19.96704 9.841162 
+Q 10.14624 9.841162 10.14624 18.645034 
+L 10.14624 435.948566 
+Q 10.14624 444.752438 19.96704 444.752438 
+z
+" clip-path="url(#p2276c625aa)" style="fill: #0d1117; stroke: #30363d; stroke-width: 1.3; stroke-linejoin: miter"/>
+   </g>
+   <g id="line2d_1">
+    <path d="M 10.14624 34.92 
+L 495.29376 34.92 
+" clip-path="url(#p2276c625aa)" style="fill: none; stroke: #21262d; stroke-linecap: square"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 20.94912 24.361452 
+C 21.92581 24.361452 22.862629 24.01359 23.553253 23.394479 
+C 24.243877 22.775368 24.63192 21.935555 24.63192 21.06 
+C 24.63192 20.184445 24.243877 19.344632 23.553253 18.725521 
+C 22.862629 18.10641 21.92581 17.758548 20.94912 17.758548 
+C 19.97243 17.758548 19.035611 18.10641 18.344987 18.725521 
+C 17.654363 19.344632 17.26632 20.184445 17.26632 21.06 
+C 17.26632 21.935555 17.654363 22.775368 18.344987 23.394479 
+C 19.035611 24.01359 19.97243 24.361452 20.94912 24.361452 
+z
+" clip-path="url(#p2276c625aa)" style="fill: #ff5f56; stroke: #ff5f56; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 31.752 24.361452 
+C 32.72869 24.361452 33.665509 24.01359 34.356133 23.394479 
+C 35.046757 22.775368 35.4348 21.935555 35.4348 21.06 
+C 35.4348 20.184445 35.046757 19.344632 34.356133 18.725521 
+C 33.665509 18.10641 32.72869 17.758548 31.752 17.758548 
+C 30.77531 17.758548 29.838491 18.10641 29.147867 18.725521 
+C 28.457243 19.344632 28.0692 20.184445 28.0692 21.06 
+C 28.0692 21.935555 28.457243 22.775368 29.147867 23.394479 
+C 29.838491 24.01359 30.77531 24.361452 31.752 24.361452 
+z
+" clip-path="url(#p2276c625aa)" style="fill: #ffbd2e; stroke: #ffbd2e; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 42.55488 24.361452 
+C 43.53157 24.361452 44.468389 24.01359 45.159013 23.394479 
+C 45.849637 22.775368 46.23768 21.935555 46.23768 21.06 
+C 46.23768 20.184445 45.849637 19.344632 45.159013 18.725521 
+C 44.468389 18.10641 43.53157 17.758548 42.55488 17.758548 
+C 41.57819 17.758548 40.641371 18.10641 39.950747 18.725521 
+C 39.260123 19.344632 38.87208 20.184445 38.87208 21.06 
+C 38.87208 21.935555 39.260123 22.775368 39.950747 23.394479 
+C 40.641371 24.01359 41.57819 24.361452 42.55488 24.361452 
+z
+" clip-path="url(#p2276c625aa)" style="fill: #27c93f; stroke: #27c93f; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="fill: #8b949e; font: 10px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle" x="252.72" y="23.785" transform="rotate(-0 252.72 23.785)">driftwatch demo    postgres -&gt; duckdb</text>
+   </g>
+   <g id="text_2">
+    <text style="fill: #7ee787; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="54.576614" transform="rotate(-0 20.94912 54.576614)">$ make demo</text>
+   </g>
+   <g id="text_3">
+    <text style="fill: #8b949e; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="73.359183" transform="rotate(-0 20.94912 73.359183)">starting Postgres (postgres:16) ... ready</text>
+   </g>
+   <g id="text_4">
+    <text style="fill: #8b949e; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="92.238002" transform="rotate(-0 20.94912 92.238002)">loaded 1,000 orders into Postgres and the DuckDB warehouse</text>
+   </g>
+   <g id="text_5">
+    <text style="fill: #6e7681; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="129.975014" transform="rotate(-0 20.94912 129.975014)"># 1) the copies match</text>
+   </g>
+   <g id="text_6">
+    <text style="fill: #7ee787; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="148.824614" transform="rotate(-0 20.94912 148.824614)">$ driftwatch run -c orders.yaml</text>
+   </g>
+   <g id="text_7">
+    <text style="fill: #3fb950; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="167.674214" transform="rotate(-0 20.94912 167.674214)">driftwatch: orders - IN SYNC          (exit 0)</text>
+   </g>
+   <g id="text_8">
+    <text style="fill: #6e7681; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="205.373414" transform="rotate(-0 20.94912 205.373414)"># 2) the warehouse drifts</text>
+   </g>
+   <g id="text_9">
+    <text style="fill: #7ee787; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="224.223014" transform="rotate(-0 20.94912 224.223014)">$ driftwatch run -c orders.yaml</text>
+   </g>
+   <g id="text_10">
+    <text style="fill: #f85149; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="243.072614" transform="rotate(-0 20.94912 243.072614)">driftwatch: orders - DRIFT            (exit 1)</text>
+   </g>
+   <g id="text_11">
+    <text style="fill: #c9d1d9; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="261.855183" transform="rotate(-0 20.94912 261.855183)">  drift keys: 3  (missing=1, extra=1, changed=1)</text>
+   </g>
+   <g id="text_12">
+    <text style="fill: #c9d1d9; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="280.704783" transform="rotate(-0 20.94912 280.704783)">    [changed] 250</text>
+   </g>
+   <g id="text_13">
+    <text style="fill: #c9d1d9; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="299.554383" transform="rotate(-0 20.94912 299.554383)">    [missing] 500</text>
+   </g>
+   <g id="text_14">
+    <text style="fill: #c9d1d9; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="318.471014" transform="rotate(-0 20.94912 318.471014)">    [extra]   99999</text>
+   </g>
+   <g id="text_15">
+    <text style="fill: #6e7681; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="356.132402" transform="rotate(-0 20.94912 356.132402)"># 3) a fresh row is still syncing</text>
+   </g>
+   <g id="text_16">
+    <text style="fill: #7ee787; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="374.982002" transform="rotate(-0 20.94912 374.982002)">$ driftwatch run -c orders.yaml          # 15-min grace window</text>
+   </g>
+   <g id="text_17">
+    <text style="fill: #3fb950; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="393.831602" transform="rotate(-0 20.94912 393.831602)">driftwatch: orders - IN SYNC          (exit 0, lag ignored)</text>
+   </g>
+   <g id="text_18">
+    <text style="fill: #7ee787; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="412.681202" transform="rotate(-0 20.94912 412.681202)">$ driftwatch run -c orders-no-grace.yaml</text>
+   </g>
+   <g id="text_19">
+    <text style="fill: #f85149; font: 11px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: start" x="20.94912" y="431.501583" transform="rotate(-0 20.94912 431.501583)">driftwatch: orders - DRIFT            (exit 1, [missing] 1001)</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p2276c625aa">
+   <rect x="7.2" y="7.2" width="491.04" height="440.1936"/>
+  </clipPath>
+ </defs>
+</svg>
