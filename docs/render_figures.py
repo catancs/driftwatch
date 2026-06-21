@@ -56,51 +56,51 @@ def save(fig, name):
 
 def fig_perf_rows():
     fig, ax = plt.subplots(figsize=(8.2, 2.5))
+    total = 10_000_000   # measured: see examples/benchmark-results.json
     labels = ["full table scan", "driftwatch"]
-    vals = [6000, 275]
+    vals = [total, 14651]
     colors = [GREY, TEAL]
     y = [1, 0]
     ax.barh(y, vals, color=colors, height=0.52, zorder=3)
     ax.set_yticks(y)
     ax.set_yticklabels(labels, fontsize=12)
     for yi, v in zip(y, vals):
-        pct = v / 6000 * 100
-        ax.text(v + 90, yi, "{:,} rows  ({:.1f}%)".format(v, pct),
+        pct = v / total * 100
+        pct_str = "%.0f%%" % pct if pct >= 10 else "%.2f%%" % pct
+        ax.text(v + total * 0.012, yi, "{:,} rows  ({})".format(v, pct_str),
                 va="center", ha="left", color=INK, fontsize=12, fontweight="bold")
-    ax.set_xlim(0, 7400)
+    ax.set_xlim(0, total * 1.24)
     ax.set_xticks([])
     for s in ("top", "right", "left", "bottom"):
         ax.spines[s].set_visible(False)
     ax.tick_params(left=False)
-    ax.set_title("Rows read to verify a 6,000-row table with 3 drifted rows",
+    ax.set_title("Rows read to find 7 drifted rows in a 10,000,000-row table (measured)",
                  loc="left", fontsize=13.5, fontweight="bold", pad=10)
-    ax.text(0, -0.42, "Lower is better. driftwatch prunes matching key ranges instead of scanning them.",
+    ax.text(0, -0.42, "Lower is better. driftwatch only reads the key ranges that disagree.",
             transform=ax.transAxes, color=MUTED, fontsize=10.5)
     save(fig, "perf-rows")
 
 
 def fig_perf_scaling():
     fig, ax = plt.subplots(figsize=(7.6, 4.2))
-    n = np.array([1e3, 1e4, 1e5, 1e6, 1e7, 1e8])
+    # measured (examples/benchmark-results.json): rows read to find sparse drift
+    n = np.array([1e5, 1e6, 1e7])
     full = n                       # a full scan reads every row
-    leaf = 5000
-    dw = leaf + 16 * np.log2(n) * 2  # a few drifted leaves + checksum round-trips, ~flat
+    dw = np.array([2346, 23440, 14651])
     ax.plot(n, full, marker="o", color=GREY, linewidth=2.4, label="full table scan  (reads every row)")
-    ax.plot(n, dw, marker="o", color=TEAL, linewidth=2.6, label="driftwatch  (sparse drift)")
+    ax.plot(n, dw, marker="o", color=TEAL, linewidth=2.6, label="driftwatch  (measured)")
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel("table size (rows)")
-    ax.set_ylabel("rows read to verify")
+    ax.set_ylabel("rows read to find drift")
     ax.grid(True, which="major", color=GRID, linewidth=1.0, zorder=0)
     for s in ("top", "right"):
         ax.spines[s].set_visible(False)
-    ax.set_title("Verification cost stays flat when drift is sparse",
+    ax.set_title("Rows read to find sparse drift stays tiny as the table grows",
                  loc="left", fontsize=13.5, fontweight="bold", pad=10)
-    ax.legend(frameon=False, fontsize=11, loc="upper left")
-    ax.annotate("~1000x fewer rows\nat 100M",
-                xy=(1e8, dw[-1]), xytext=(1.1e6, dw[-1] * 6),
-                color=TEAL, fontsize=10.5,
-                arrowprops=dict(arrowstyle="-", color=TEAL, lw=1.2))
+    ax.legend(frameon=False, fontsize=11, loc="lower right")
+    ax.text(1.1e5, 4.5e4, "~15,000 rows checks 10M  (0.15%)",
+            color=TEAL, fontsize=10.5, ha="left", va="center")
     save(fig, "perf-scaling")
 
 

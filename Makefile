@@ -20,3 +20,6 @@ figures:   ## regenerate the README figures (needs matplotlib)
 
 demo:      ## run the live Postgres + DuckDB demo (needs Docker)
 	bash examples/demo.sh
+
+bench:     ## run the scale benchmark, 100k/1M/10M rows (needs Docker)
+	bash examples/benchmark.sh

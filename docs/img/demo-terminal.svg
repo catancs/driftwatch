@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-06-21T00:24:27.901920</dc:date>
+    <dc:date>2026-06-21T09:30:22.353134</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -40,12 +40,12 @@ Q 10.14624 9.841162 10.14624 18.645034
 L 10.14624 435.948566 
 Q 10.14624 444.752438 19.96704 444.752438 
 z
-" clip-path="url(#p2276c625aa)" style="fill: #0d1117; stroke: #30363d; stroke-width: 1.3; stroke-linejoin: miter"/>
+" clip-path="url(#p859b1d68a7)" style="fill: #0d1117; stroke: #30363d; stroke-width: 1.3; stroke-linejoin: miter"/>
    </g>
    <g id="line2d_1">
     <path d="M 10.14624 34.92 
 L 495.29376 34.92 
-" clip-path="url(#p2276c625aa)" style="fill: none; stroke: #21262d; stroke-linecap: square"/>
+" clip-path="url(#p859b1d68a7)" style="fill: none; stroke: #21262d; stroke-linecap: square"/>
    </g>
    <g id="patch_3">
     <path d="M 20.94912 24.361452 
@@ -58,7 +58,7 @@ C 17.654363 19.344632 17.26632 20.184445 17.26632 21.06
 C 17.26632 21.935555 17.654363 22.775368 18.344987 23.394479 
 C 19.035611 24.01359 19.97243 24.361452 20.94912 24.361452 
 z
-" clip-path="url(#p2276c625aa)" style="fill: #ff5f56; stroke: #ff5f56; stroke-linejoin: miter"/>
+" clip-path="url(#p859b1d68a7)" style="fill: #ff5f56; stroke: #ff5f56; stroke-linejoin: miter"/>
    </g>
    <g id="patch_4">
     <path d="M 31.752 24.361452 
@@ -71,7 +71,7 @@ C 28.457243 19.344632 28.0692 20.184445 28.0692 21.06
 C 28.0692 21.935555 28.457243 22.775368 29.147867 23.394479 
 C 29.838491 24.01359 30.77531 24.361452 31.752 24.361452 
 z
-" clip-path="url(#p2276c625aa)" style="fill: #ffbd2e; stroke: #ffbd2e; stroke-linejoin: miter"/>
+" clip-path="url(#p859b1d68a7)" style="fill: #ffbd2e; stroke: #ffbd2e; stroke-linejoin: miter"/>
    </g>
    <g id="patch_5">
     <path d="M 42.55488 24.361452 
@@ -84,7 +84,7 @@ C 39.260123 19.344632 38.87208 20.184445 38.87208 21.06
 C 38.87208 21.935555 39.260123 22.775368 39.950747 23.394479 
 C 40.641371 24.01359 41.57819 24.361452 42.55488 24.361452 
 z
-" clip-path="url(#p2276c625aa)" style="fill: #27c93f; stroke: #27c93f; stroke-linejoin: miter"/>
+" clip-path="url(#p859b1d68a7)" style="fill: #27c93f; stroke: #27c93f; stroke-linejoin: miter"/>
    </g>
    <g id="text_1">
     <text style="fill: #8b949e; font: 10px 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Computer Modern Typewriter', 'Andale Mono', 'Nimbus Mono L', 'Courier New', 'Courier', 'Fixed', 'Terminal', monospace; text-anchor: middle" x="252.72" y="23.785" transform="rotate(-0 252.72 23.785)">driftwatch demo    postgres -&gt; duckdb</text>
@@ -146,7 +146,7 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="p2276c625aa">
+  <clipPath id="p859b1d68a7">
    <rect x="7.2" y="7.2" width="491.04" height="440.1936"/>
   </clipPath>
  </defs>

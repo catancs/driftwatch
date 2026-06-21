@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
   "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="626.113264pt" height="233.653563pt" viewBox="0 0 626.113264 233.653563" xmlns="http://www.w3.org/2000/svg" version="1.1">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="648.029875pt" height="233.653563pt" viewBox="0 0 648.029875 233.653563" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-06-21T00:24:27.400149</dc:date>
+    <dc:date>2026-06-21T09:30:21.973102</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -22,8 +22,8 @@
  <g id="figure_1">
   <g id="patch_1">
    <path d="M 0 233.653563 
-L 626.113264 233.653563 
-L 626.113264 0 
+L 648.029875 233.653563 
+L 648.029875 0 
 L 0 0 
 z
 " style="fill: #ffffff"/>
@@ -52,36 +52,36 @@ z
    </g>
    <g id="patch_3">
     <path d="M 98.52625 76.863154 
-L 469.520845 76.863154 
-L 469.520845 33.757891 
+L 467.52625 76.863154 
+L 467.52625 33.757891 
 L 98.52625 33.757891 
 z
-" clip-path="url(#pe21d460449)" style="fill: #aab2ba"/>
+" clip-path="url(#p527236b775)" style="fill: #aab2ba"/>
    </g>
    <g id="patch_4">
     <path d="M 98.52625 159.757891 
-L 115.530169 159.757891 
-L 115.530169 116.652627 
+L 99.066872 159.757891 
+L 99.066872 116.652627 
 L 98.52625 116.652627 
 z
-" clip-path="url(#pe21d460449)" style="fill: #1f8a78"/>
+" clip-path="url(#p527236b775)" style="fill: #1f8a78"/>
    </g>
    <g id="text_3">
-    <text style="fill: #1b2330; font: 700 12px 'DejaVu Sans'; text-anchor: start" x="475.085764" y="58.621772" transform="rotate(-0 475.085764 58.621772)">6,000 rows  (100.0%)</text>
+    <text style="fill: #1b2330; font: 700 12px 'DejaVu Sans'; text-anchor: start" x="471.95425" y="58.621772" transform="rotate(-0 471.95425 58.621772)">10,000,000 rows  (100%)</text>
    </g>
    <g id="text_4">
-    <text style="fill: #1b2330; font: 700 12px 'DejaVu Sans'; text-anchor: start" x="121.095088" y="141.516509" transform="rotate(-0 121.095088 141.516509)">275 rows  (4.6%)</text>
+    <text style="fill: #1b2330; font: 700 12px 'DejaVu Sans'; text-anchor: start" x="103.494872" y="141.516509" transform="rotate(-0 103.494872 141.516509)">14,651 rows  (0.15%)</text>
    </g>
    <g id="text_5">
-    <text style="fill: #8a939b; font: 10.5px 'DejaVu Sans'; text-anchor: start" x="98.52625" y="224.269891" transform="rotate(-0 98.52625 224.269891)">Lower is better. driftwatch prunes matching key ranges instead of scanning them.</text>
+    <text style="fill: #8a939b; font: 10.5px 'DejaVu Sans'; text-anchor: start" x="98.52625" y="224.269891" transform="rotate(-0 98.52625 224.269891)">Lower is better. driftwatch only reads the key ranges that disagree.</text>
    </g>
    <g id="text_6">
-    <text style="fill: #1b2330; font: 700 13.5px 'DejaVu Sans'; text-anchor: start" x="98.52625" y="17.457891" transform="rotate(-0 98.52625 17.457891)">Rows read to verify a 6,000-row table with 3 drifted rows</text>
+    <text style="fill: #1b2330; font: 700 13.5px 'DejaVu Sans'; text-anchor: start" x="98.52625" y="17.457891" transform="rotate(-0 98.52625 17.457891)">Rows read to find 7 drifted rows in a 10,000,000-row table (measured)</text>
    </g>
   </g>
  </g>
  <defs>
-  <clipPath id="pe21d460449">
+  <clipPath id="p527236b775">
    <rect x="98.52625" y="27.457891" width="457.56" height="138.6"/>
   </clipPath>
  </defs>

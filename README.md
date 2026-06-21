@@ -221,14 +221,8 @@ Two ideas do the work.
 **It only reads rows that might be wrong.** Both databases hash ranges of rows and compare just
 the hashes. Ranges that match are skipped without reading their rows. driftwatch only looks
 closely at the ranges that disagree, so a healthy table is cheap to check and a small problem is
-found quickly. In the demo above, 1,000 matching rows were verified by reading zero.
-
-<p align="center"><img src="docs/img/perf-rows.svg" width="700" alt="Rows read to verify a 6,000-row table with 3 drifted rows: a full table scan reads 6,000 rows, driftwatch reads 275."></p>
-
-For a small amount of drift, the cost stays about the same as the table grows, while a full scan
-grows with the table.
-
-<p align="center"><img src="docs/img/perf-scaling.svg" width="620" alt="Log-log chart: rows read by a full table scan grow with table size, while driftwatch stays flat for sparse drift, about 1000 times fewer rows at 100 million."></p>
+found by reading a tiny fraction of the table. The [benchmark below](#benchmarks-measured)
+shows this on real tables up to 10 million rows.
 
 **It tells lag apart from drift.** A plain diff reports every row the copy has not caught up on
 yet, which is noise. driftwatch picks a cutoff time at the start of the run and only compares
@@ -237,6 +231,35 @@ caught up. It stays quiet until something is actually wrong.
 
 Every run is read-only on both databases, repeatable, and changes nothing. Full design in
 [`docs/superpowers/specs/2026-06-20-driftwatch-design.md`](docs/superpowers/specs/2026-06-20-driftwatch-design.md).
+
+## Benchmarks (measured)
+
+These numbers come from a real run on a laptop against a real Postgres and a real DuckDB
+warehouse. Reproduce them with `make bench`. The script is
+[`examples/benchmark.py`](examples/benchmark.py) and the raw results are committed at
+[`examples/benchmark-results.json`](examples/benchmark-results.json).
+
+| table rows | verify a healthy table | rows read | find sparse drift | rows read | found |
+|---:|---:|---:|---:|---:|:---:|
+| 100,000 | 0.19s | 0 | 0.59s | 2,346 (2.3%) | 7 / 7 |
+| 1,000,000 | 1.07s | 0 | 3.28s | 23,440 (2.3%) | 7 / 7 |
+| 10,000,000 | 10.8s | 0 | 28.7s | 14,651 (0.15%) | 7 / 7 |
+
+<p align="center"><img src="docs/img/perf-rows.svg" width="720" alt="Measured: rows read to find 7 drifted rows in a 10,000,000-row table. A full table scan reads 10,000,000 rows; driftwatch reads 14,651, which is 0.15 percent."></p>
+
+Two honest takeaways:
+
+- **It reads almost none of the table.** A healthy 10-million-row table is verified by reading 0
+  rows. Finding 7 bad rows in 10 million reads about 15,000 (0.15 percent). That is what keeps
+  data transfer, memory, and warehouse cost low.
+- **It stays correct at scale.** At every size it found exactly the rows that were changed,
+  deleted, or added (7 of 7).
+
+<p align="center"><img src="docs/img/perf-scaling.svg" width="640" alt="Measured log-log chart. A full table scan reads every row, growing with the table. The rows driftwatch reads to find sparse drift stay near 15,000 as the table grows from 100,000 to 10,000,000."></p>
+
+The wall-clock grows with the table because each database hashes its own rows to compute the
+checksums. That work happens inside the database and moves no data out. On a cloud warehouse,
+where you pay for data scanned and moved, driftwatch moves almost none of it.
 
 ## What it catches
 
