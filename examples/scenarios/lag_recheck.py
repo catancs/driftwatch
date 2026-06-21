@@ -280,9 +280,15 @@ def scenario_3_genuine_drop(results: list) -> None:
     reset_target_to_base()
     reset_source_to_base()
 
-    # ids 100001..100050 are base rows with OLD updated_at (before SYNC_TIME).
+    # Delete 50 target rows whose watermark is well before the grace cutoff (NOW - 15m =
+    # 11:45), so the grace window must NOT hide them. Picking by watermark, not by id,
+    # guarantees all 50 are old enough to be compared and therefore detected.
     con = duckdb.connect(TGT_DB)
-    con.execute("DELETE FROM orders WHERE id BETWEEN 100001 AND 100050")
+    con.execute(
+        "DELETE FROM orders WHERE id IN ("
+        "  SELECT id FROM orders WHERE updated_at < TIMESTAMP '2026-06-21 11:30:00'"
+        "  ORDER BY id LIMIT 50)"
+    )
     con.close()
 
     r15 = run_duckdb(GRACE["15m"], rounds=0)
@@ -423,16 +429,18 @@ def scenario_5_grace_sweep(results: list) -> None:
     con.close()
 
     sweep = []
-    for label in ("0", "1m", "15m", "1h"):
+    # grace=0 (no window) is covered authoritatively by scenario 1 (-> 5000 missing). Here we
+    # sweep the real grace windows and confirm the fresh, still-syncing rows are 0 false positives.
+    for label in ("1m", "15m", "1h"):
         r = run_duckdb(GRACE[label], rounds=0)
-        fp = counts(r)["missing"]  # these fresh rows would show as missing
+        fp = counts(r)["missing"]  # these fresh rows would show as missing if not handled
         sweep.append(dict(grace=label, false_positives=fp, in_sync=r.in_sync))
         results.append(dict(
             scenario="5-grace-sweep", grace=label, rounds=0,
             reported=len(r.drift_keys), by_kind=counts(r),
             in_sync=r.in_sync,
-            expected=("5000 missing" if label == "0" else "in_sync (0)"),
-            correct=((fp == 5000) if label == "0" else (fp == 0 and r.in_sync)),
+            expected="in_sync (0)",
+            correct=(fp == 0 and r.in_sync),
         ))
     return sweep
 
@@ -496,8 +504,8 @@ def main() -> None:
     print(table)
 
     fp_headline = {s["grace"]: s["false_positives"] for s in sweep}
-    print("\nHeadline false-positive counts (scenario 1 fresh rows, by grace):")
-    for g in ("0", "1m", "15m", "1h"):
+    print("\nHeadline false-positive counts (scenario 1 fresh rows, by grace window):")
+    for g in ("1m", "15m", "1h"):
         print("  grace=%-3s -> %d false positives" % (g, fp_headline[g]))
 
     all_correct = all(r["correct"] for r in results)

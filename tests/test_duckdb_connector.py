@@ -340,6 +340,270 @@ def test_empty_segment_checksum_zero():
     duck.close()
 
 
+# --- pruning / lag helpers: split_points & keys_above_watermark ----------------
+#
+# These exercise the two pruning/lag methods at SCALE (~50k rows) across an
+# integer-PK table, a composite-PK table, and a text-PK table, in BOTH the
+# MemoryConnector (canonical Python reference) and the DuckDBConnector (SQL).
+#
+#   * keys_above_watermark must equal the Memory reference EXACTLY (as a set) for
+#     several cutoffs - the in-flight set the engine drops must be identical.
+#   * split_points boundaries must be strictly increasing, strictly inside (lo, hi),
+#     and the half-open sub-ranges they form must PARTITION the rows exactly: the
+#     per-sub-range counts sum to the total with no gaps and no overlaps. Boundaries
+#     need not equal Memory's (the spec only requires a valid equal-ish split).
+#   * split_points returns None on empty and single-row ranges.
+
+_BIG_N = 50_000
+
+
+def _big_int_rows():
+    """integer PK table: id 1..N, a watermark (one third in flight), a payload."""
+    rows = []
+    for i in range(1, _BIG_N + 1):
+        rows.append({
+            "id": i,
+            "val": (i * 7919) % 100003,        # arbitrary compared column
+            # watermark: ids divisible by 3 sit "in the future" relative to a mid cutoff
+            "updated_at": dt.datetime(2026, 1, 1) + dt.timedelta(seconds=(i % 90000)),
+        })
+    return rows
+
+
+def _big_composite_rows():
+    """composite PK (region, id): a few regions x many ids, watermark spread."""
+    regions = ["af", "ap", "eu", "na", "sa"]
+    rows = []
+    n_per = _BIG_N // len(regions)
+    for r_idx, region in enumerate(regions):
+        for i in range(1, n_per + 1):
+            seq = r_idx * n_per + i
+            rows.append({
+                "region": region,
+                "id": i,
+                "kind": "k%d" % (seq % 7),
+                "updated_at": dt.datetime(2026, 1, 1) + dt.timedelta(seconds=(seq % 90000)),
+            })
+    return rows
+
+
+def _big_text_rows():
+    """text PK: zero-padded string keys so lexicographic order is well-defined."""
+    rows = []
+    for i in range(1, _BIG_N + 1):
+        rows.append({
+            "k": "key-%08d" % i,               # 'key-00000001' ...
+            "val": (i * 104729) % 100003,
+            "updated_at": dt.datetime(2026, 1, 1) + dt.timedelta(seconds=(i % 90000)),
+        })
+    return rows
+
+
+_BIG_INT = _big_int_rows()
+_BIG_COMPOSITE = _big_composite_rows()
+_BIG_TEXT = _big_text_rows()
+
+
+# The 50k-row tables are READ-ONLY for both methods under test (split_points /
+# keys_above_watermark do no DML), so we build each connector ONCE and share it across
+# every test. Re-loading 50k rows into DuckDB per test was the dominant cost; caching
+# turns a multi-minute run into seconds.
+_BIG_MEMORY = None
+_BIG_DUCKDB = None
+
+
+def _make_big_memory():
+    global _BIG_MEMORY
+    if _BIG_MEMORY is None:
+        _BIG_MEMORY = MemoryConnector({
+            "big_int": list(_BIG_INT),
+            "big_composite": list(_BIG_COMPOSITE),
+            "big_text": list(_BIG_TEXT),
+        })
+    return _BIG_MEMORY
+
+
+def _make_big_duckdb():
+    global _BIG_DUCKDB
+    if _BIG_DUCKDB is not None:
+        return _BIG_DUCKDB
+    from driftwatch.connectors.duckdb import DuckDBConnector
+
+    c = DuckDBConnector(path=":memory:")
+    con = c._con
+    # Bulk-load via a registered Python relation: one columnar INSERT ... SELECT per
+    # table is far faster than 50k parameterized INSERTs.
+    con.execute("CREATE TABLE big_int(id BIGINT, val BIGINT, updated_at TIMESTAMP)")
+    _int_rows = [(r["id"], r["val"], r["updated_at"]) for r in _BIG_INT]
+    con.executemany("INSERT INTO big_int VALUES (?,?,?)", _int_rows)
+    con.execute(
+        "CREATE TABLE big_composite(region VARCHAR, id BIGINT, kind VARCHAR, updated_at TIMESTAMP)"
+    )
+    _comp_rows = [(r["region"], r["id"], r["kind"], r["updated_at"]) for r in _BIG_COMPOSITE]
+    con.executemany("INSERT INTO big_composite VALUES (?,?,?,?)", _comp_rows)
+    con.execute("CREATE TABLE big_text(k VARCHAR, val BIGINT, updated_at TIMESTAMP)")
+    _text_rows = [(r["k"], r["val"], r["updated_at"]) for r in _BIG_TEXT]
+    con.executemany("INSERT INTO big_text VALUES (?,?,?)", _text_rows)
+    _BIG_DUCKDB = c
+    return c
+
+
+def _count_in_range(conn, table, pk, rng):
+    """Count rows whose key is in the half-open range (no watermark filter).
+
+    Counts WITHOUT hashing (``checksum`` would md5 every row, which is far too slow at
+    50k rows x many sub-ranges). We reuse each connector's own range-predicate logic so
+    the count semantics are identical to what the methods under test see:
+      * DuckDB: ``SELECT COUNT(*)`` with the connector's lexicographic range predicate.
+      * Memory: its ``_selected`` generator with the same KeyRange.
+    """
+    from driftwatch.connectors.duckdb import DuckDBConnector
+
+    if isinstance(conn, DuckDBConnector):
+        params = []
+        where = conn._where(conn._range_predicate(list(pk), rng, params))
+        qtable = conn._quote_table(table)
+        sql = f"SELECT COUNT(*) FROM {qtable}{where}"
+        return int(conn._con.execute(sql, params).fetchone()[0])
+    # MemoryConnector
+    return sum(1 for _ in conn._selected(table, list(pk), rng, None, None))
+
+
+def _assert_partition(conn, table, pk, full_range, bounds):
+    """The sub-ranges [lo,b1),[b1,b2),...,[bk,hi) must partition `full_range` exactly."""
+    lo, hi = full_range.lo, full_range.hi
+    total = _count_in_range(conn, table, pk, full_range)
+    # boundaries strictly increasing
+    assert bounds == sorted(bounds), f"{table}: boundaries not increasing: {bounds}"
+    assert len(bounds) == len(set(bounds)), f"{table}: duplicate boundaries: {bounds}"
+    # strictly inside (lo, hi)
+    for b in bounds:
+        bt = tuple(b)
+        if lo is not None:
+            assert bt > tuple(lo), f"{table}: boundary {bt} <= lo {lo}"
+        if hi is not None:
+            assert bt < tuple(hi), f"{table}: boundary {bt} >= hi {hi}"
+    # sub-ranges sum to total with no gaps/overlaps
+    edges = [lo] + [tuple(b) for b in bounds] + [hi]
+    summed = 0
+    for a, b in zip(edges[:-1], edges[1:]):
+        summed += _count_in_range(conn, table, pk, KeyRange(lo=a, hi=b))
+    assert summed == total, (
+        f"{table}: sub-range counts {summed} != total {total} (gaps/overlaps)"
+    )
+    return total
+
+
+def _run_split_points_case(table, pk, full_range):
+    mem, duck = _make_big_memory(), _make_big_duckdb()
+    for n in (4, 16):
+        mb = mem.split_points(table, pk, full_range, None, None, n)
+        db = duck.split_points(table, pk, full_range, None, None, n)
+        assert mb is not None, f"{table}: memory split returned None for n={n}"
+        assert db is not None, f"{table}: duckdb split returned None for n={n}"
+        # 1..n-1 boundaries, both sides
+        assert 1 <= len(mb) <= n - 1, f"{table}: memory produced {len(mb)} bounds (n={n})"
+        assert 1 <= len(db) <= n - 1, f"{table}: duckdb produced {len(db)} bounds (n={n})"
+        # both must partition the data exactly (verified against DuckDB's own counts,
+        # which the rest of the suite already proved match Memory's)
+        total_d = _assert_partition(duck, table, pk, full_range, db)
+        total_m = _assert_partition(mem, table, pk, full_range, mb)
+        assert total_d == total_m, f"{table}: totals differ mem={total_m} duck={total_d}"
+        # buckets should be roughly balanced: with n=16 and 50k rows every sub-range
+        # has many rows, so no sub-range may be empty (that would mean a wasted split).
+        edges = [full_range.lo] + [tuple(b) for b in db] + [full_range.hi]
+        for a, b in zip(edges[:-1], edges[1:]):
+            cnt = _count_in_range(duck, table, pk, KeyRange(lo=a, hi=b))
+            assert cnt > 0, f"{table}: empty sub-range [{a},{b}) for n={n}"
+
+
+def test_split_points_int_pk_partitions():
+    _run_split_points_case("big_int", ["id"], KeyRange())
+
+
+def test_split_points_composite_pk_partitions():
+    _run_split_points_case("big_composite", ["region", "id"], KeyRange())
+
+
+def test_split_points_text_pk_partitions():
+    _run_split_points_case("big_text", ["k"], KeyRange())
+
+
+def test_split_points_bounded_subrange_partitions():
+    """A non-trivial bounded range must also split and partition exactly."""
+    # interior window of the integer table
+    _run_split_points_case("big_int", ["id"], KeyRange(lo=(10_000,), hi=(40_000,)))
+
+
+def test_split_points_none_on_empty_and_single():
+    mem, duck = _make_big_memory(), _make_big_duckdb()
+    # empty range (out of bounds)
+    empty = KeyRange(lo=(10**9,), hi=(10**9 + 5,))
+    assert duck.split_points("big_int", ["id"], empty, None, None, 4) is None
+    assert mem.split_points("big_int", ["id"], empty, None, None, 4) is None
+    # exactly one row: [k, k+1) selects only id==k
+    single = KeyRange(lo=(7,), hi=(8,))
+    assert _count_in_range(duck, "big_int", ["id"], single) == 1
+    assert duck.split_points("big_int", ["id"], single, None, None, 4) is None
+    assert mem.split_points("big_int", ["id"], single, None, None, 4) is None
+    # n < 2 can never split
+    assert duck.split_points("big_int", ["id"], KeyRange(), None, None, 1) is None
+    # composite single-row range
+    csingle = KeyRange(lo=("eu", 3), hi=("eu", 4))
+    assert _count_in_range(duck, "big_composite", ["region", "id"], csingle) == 1
+    assert duck.split_points("big_composite", ["region", "id"], csingle, None, None, 8) is None
+
+
+def _watermark_cutoffs():
+    base = dt.datetime(2026, 1, 1)
+    return [
+        base + dt.timedelta(seconds=10_000),
+        base + dt.timedelta(seconds=45_000),
+        base + dt.timedelta(seconds=80_000),
+        base + dt.timedelta(seconds=89_999),   # almost everything below
+    ]
+
+
+def _assert_keys_above_equal(mem, duck, table, pk, rng):
+    for cutoff in _watermark_cutoffs():
+        m = set(mem.keys_above_watermark(table, pk, rng, "updated_at", cutoff))
+        d = set(duck.keys_above_watermark(table, pk, rng, "updated_at", cutoff))
+        assert m == d, (
+            f"{table} keys_above_watermark mismatch at cutoff={cutoff} rng={rng}: "
+            f"only-mem={len(m - d)} only-duck={len(d - m)} (mem={len(m)} duck={len(d)})"
+        )
+    # no watermark column / no cutoff -> [] on both sides
+    assert duck.keys_above_watermark(table, pk, rng, None, None) == []
+    assert mem.keys_above_watermark(table, pk, rng, None, None) == []
+    assert duck.keys_above_watermark(table, pk, rng, "updated_at", None) == []
+    assert mem.keys_above_watermark(table, pk, rng, "updated_at", None) == []
+
+
+def test_keys_above_watermark_int_pk():
+    mem, duck = _make_big_memory(), _make_big_duckdb()
+    _assert_keys_above_equal(mem, duck, "big_int", ["id"], KeyRange())
+    # bounded range too
+    _assert_keys_above_equal(mem, duck, "big_int", ["id"], KeyRange(lo=(5_000,), hi=(25_000,)))
+
+
+def test_keys_above_watermark_composite_pk():
+    mem, duck = _make_big_memory(), _make_big_duckdb()
+    pk = ["region", "id"]
+    _assert_keys_above_equal(mem, duck, "big_composite", pk, KeyRange())
+    _assert_keys_above_equal(
+        mem, duck, "big_composite", pk, KeyRange(lo=("eu", 100), hi=("na", 200))
+    )
+
+
+def test_keys_above_watermark_text_pk():
+    mem, duck = _make_big_memory(), _make_big_duckdb()
+    _assert_keys_above_equal(mem, duck, "big_text", ["k"], KeyRange())
+    _assert_keys_above_equal(
+        mem, duck, "big_text", ["k"],
+        KeyRange(lo=("key-00005000",), hi=("key-00025000",)),
+    )
+
+
 if __name__ == "__main__":
     if not _DUCKDB_OK:
         print("SKIP: duckdb not available; could NOT verify conformance.")

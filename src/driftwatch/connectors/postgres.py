@@ -496,6 +496,134 @@ class PostgresConnector(Connector):
         where = _sql.SQL("({kp}) AND ({cw})").format(kp=key_pred, cw=cut_where)
         return self._fetch_map(table, pk_cols, row_hash, where, params, float_precision)
 
+    # --- pruning / lag helpers (overrides of the non-abstract defaults) ---------
+
+    def split_points(
+        self,
+        table: str,
+        pk_cols: Sequence[str],
+        key_range: KeyRange,
+        watermark_column: Optional[str],
+        cutoff: Optional[Any],
+        n: int,
+    ) -> Optional[List[Key]]:
+        """Up to ``n - 1`` interior boundary keys that split the watermark-filtered rows
+        in ``key_range`` into ~``n`` equal-count buckets.
+
+        Mirrors :meth:`MemoryConnector.split_points`: order the selected rows by the full
+        pk tuple, then pick the keys at the 1-based row positions
+        ``round(total * i / n)`` for ``i`` in ``1..n-1`` and keep those that are strictly
+        greater than the smallest selected key (the engine's effective low bound) and
+        strictly increasing. ``round`` here is integer ``(total * i + n // 2) // n`` so it
+        matches Python's banker's-rounding-free half-up split used by the engine's
+        equal-count intent; any off-by-one only shifts a bucket boundary and never breaks
+        the partition guarantee (every selected row still lands in exactly one sub-range).
+
+        A single windowed pass computes ``ROW_NUMBER() OVER (ORDER BY pk...)`` and
+        ``COUNT(*) OVER ()`` so we never materialise the whole table client-side; the
+        boundaries themselves are pulled out in SQL. Works for single-column integer/text
+        keys and composite keys alike because ordering and selection are over the whole pk
+        tuple (the same row-value semantics the range predicate uses).
+
+        Returns ``None`` when the range holds ``<= 1`` row, when ``n < 2``, or when no
+        valid interior boundary survives de-duplication / the low-bound drop - the engine
+        then treats the range as a leaf.
+        """
+        if n < 2:
+            return None
+
+        params = self._Params()
+        where = self._where_sql(pk_cols, key_range, watermark_column, cutoff, params)
+        pk_list = _sql.SQL(", ").join(self._col(c) for c in pk_cols)
+        tbl = self._table_ident(table)
+        n_pk = len(pk_cols)
+
+        # ``ordered`` numbers every selected row by the full pk tuple and tags it with the
+        # total count. The outer query keeps only the rows whose 1-based position is one of
+        # the target split positions ``round(total*i/n)`` for i in 1..n-1, computed entirely
+        # in SQL from ``generate_series``. ``DISTINCT`` collapses positions that collide
+        # (e.g. when total < n) so duplicate boundaries never reach Python.
+        query = _sql.SQL(
+            "WITH ordered AS ("
+            "  SELECT {pk}, "
+            "         ROW_NUMBER() OVER (ORDER BY {pk}) AS dw_rn, "
+            "         COUNT(*) OVER () AS dw_total "
+            "  FROM {tbl} WHERE {where}"
+            ") "
+            "SELECT DISTINCT {pk} FROM ordered "
+            "WHERE dw_total > 1 "
+            "  AND dw_rn IN ("
+            "    SELECT (dw_total * i + {n} / 2) / {n} "
+            "    FROM generate_series(1, {n} - 1) AS g(i)"
+            "  ) "
+            "  AND dw_rn > 1 "
+            "ORDER BY {pk}"
+        ).format(pk=pk_list, tbl=tbl, where=where, n=_sql.Literal(int(n)))
+
+        cur = self._cursor()
+        try:
+            cur.execute(query, params.values)
+            rows = cur.fetchall()
+        finally:
+            cur.close()
+            self._conn.rollback()
+
+        # ``dw_rn > 1`` already drops the very first row (the low bound). De-duplicate and
+        # keep strictly increasing order across the pk tuple, matching MemoryConnector.
+        bounds: List[Key] = []
+        for row in rows:
+            b = tuple(row[:n_pk])
+            if not bounds or b > bounds[-1]:
+                bounds.append(b)
+        return bounds or None
+
+    def keys_above_watermark(
+        self,
+        table: str,
+        pk_cols: Sequence[str],
+        key_range: KeyRange,
+        watermark_column: Optional[str],
+        cutoff: Optional[Any],
+    ) -> List[Key]:
+        """Keys in ``key_range`` whose watermark is *strictly greater* than ``cutoff`` -
+        the in-flight rows the engine must drop from the target side.
+
+        Returns ``[]`` immediately when there is no watermark column or no cutoff (matching
+        :meth:`MemoryConnector.keys_above_watermark`). The range predicate is the same
+        half-open ``[lo, hi)`` row-value comparison used everywhere else; only the cutoff
+        flips from ``<=`` to ``> cutoff`` (built directly here rather than via ``_where_sql``
+        so the strict comparison and NULL-exclusion are explicit).
+        """
+        if watermark_column is None or cutoff is None:
+            return []
+
+        params = self._Params()
+        # Reuse the shared range predicate (lo/hi only) so composite keys, half-open
+        # boundaries, and identifier quoting all match the other methods exactly.
+        range_where = self._where_sql(pk_cols, key_range, None, None, params)
+        wm = self._col(watermark_column)
+        wm_clause = _sql.SQL("{wm} IS NOT NULL AND {wm} > {ph}").format(
+            wm=wm, ph=params.add(cutoff)
+        )
+        where = _sql.SQL("({rw}) AND ({wm})").format(rw=range_where, wm=wm_clause)
+
+        pk_list = _sql.SQL(", ").join(self._col(c) for c in pk_cols)
+        tbl = self._table_ident(table)
+        query = _sql.SQL("SELECT {pk} FROM {tbl} WHERE {where}").format(
+            pk=pk_list, tbl=tbl, where=where
+        )
+        n_pk = len(pk_cols)
+        out: List[Key] = []
+        cur = self._cursor()
+        try:
+            cur.execute(query, params.values)
+            for row in cur:
+                out.append(tuple(row[:n_pk]))
+            return out
+        finally:
+            cur.close()
+            self._conn.rollback()
+
     # --- shared fetch ----------------------------------------------------------
 
     def _fetch_map(

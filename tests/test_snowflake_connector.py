@@ -179,6 +179,28 @@ def _assert_matches_reference(conn, table, rows):
     exp_k = ref.fetch_row_hashes_for_keys(table, _PK, _COMPARE_COLS, [(1,), (3,)], None, None, 12)
     assert got_k == exp_k and sorted(got_k.keys()) == [(1,), (3,)], (got_k, exp_k)
 
+    # split_points(): boundaries must match the reference oracle exactly (same
+    # row-value ordering, same floor-division bucket positions), be strictly inside
+    # (lo, hi) and strictly increasing. n=2 over 3 rows -> single boundary (2,).
+    for n in (2, 3, 4):
+        got_sp = conn.split_points(table, _PK, full, None, None, n)
+        exp_sp = ref.split_points(table, _PK, full, None, None, n)
+        assert got_sp == exp_sp, ("split_points", n, got_sp, exp_sp)
+    # A range with <= 1 row cannot be split -> None on both sides.
+    one_row = KeyRange(lo=(1,), hi=(2,))
+    assert conn.split_points(table, _PK, one_row, None, None, 4) is None
+    assert ref.split_points(table, _PK, one_row, None, None, 4) is None
+
+    # keys_above_watermark(): strictly-greater-than cutoff, in range.
+    # cutoff between id=2 and id=3 -> only id=3 is "above" (too fresh).
+    wm_cutoff = dt.datetime(2026, 1, 2, 13, 0, 0)
+    got_w = sorted(conn.keys_above_watermark(table, _PK, full, "updated_at", wm_cutoff))
+    exp_w = sorted(ref.keys_above_watermark(table, _PK, full, "updated_at", wm_cutoff))
+    assert got_w == exp_w == [(3,)], (got_w, exp_w)
+    # No watermark column / no cutoff -> [] on both sides.
+    assert conn.keys_above_watermark(table, _PK, full, None, None) == []
+    assert conn.keys_above_watermark(table, _PK, full, "updated_at", None) == []
+
 
 def test_snowflake_conformance():
     """End-to-end: load a temp table, assert the connector matches the reference."""
@@ -216,6 +238,61 @@ def test_snowflake_detects_change():
         assert base[(1,)] == after[(1,)]
         assert base[(2,)] != after[(2,)]
         assert base[(3,)] == after[(3,)]
+    finally:
+        conn.close()
+
+
+def test_snowflake_split_points_composite():
+    """split_points / keys_above_watermark over a COMPOSITE (text+int) key.
+
+    Exercises tuple boundaries and lexicographic (row-value) ordering so the SQL
+    ``ROW_NUMBER() OVER (ORDER BY a, b)`` path is validated against Python tuple
+    comparison in the reference. GATED - SKIPS without a live Snowflake.
+    """
+    if GATED_OUT:
+        if pytest is not None:
+            pytest.skip(_skip_reason())
+        return
+    table = "DRIFTWATCH_SP_" + uuid.uuid4().hex[:8].upper()
+    # (tenant, seq) composite PK; deliberately out of insertion order so ORDER BY matters.
+    rows = [
+        {"tenant": "acme", "seq": 2, "v": "b", "updated_at": dt.datetime(2026, 1, 5)},
+        {"tenant": "acme", "seq": 1, "v": "a", "updated_at": dt.datetime(2026, 1, 1)},
+        {"tenant": "acme", "seq": 10, "v": "c", "updated_at": dt.datetime(2026, 1, 9)},
+        {"tenant": "beta", "seq": 1, "v": "d", "updated_at": dt.datetime(2026, 1, 2)},
+        {"tenant": "beta", "seq": 3, "v": "e", "updated_at": dt.datetime(2026, 1, 8)},
+    ]
+    pk = ["tenant", "seq"]
+    conn = _connect()
+    try:
+        cur = conn._conn.cursor()  # noqa: SLF001 - fixture writes; connector stays read-only
+        try:
+            cur.execute(
+                "CREATE OR REPLACE TEMPORARY TABLE {t} ("
+                " tenant STRING, seq INTEGER, v STRING, updated_at TIMESTAMP_NTZ)".format(t=table)
+            )
+            cur.executemany(
+                "INSERT INTO {t} (tenant, seq, v, updated_at) VALUES (%s, %s, %s, %s)".format(t=table),
+                [(r["tenant"], r["seq"], r["v"], r["updated_at"]) for r in rows],
+            )
+        finally:
+            cur.close()
+
+        ref = MemoryConnector({table: rows})
+        full = KeyRange()
+        for n in (2, 3, 5):
+            got = conn.split_points(table, pk, full, None, None, n)
+            exp = ref.split_points(table, pk, full, None, None, n)
+            assert got == exp, ("composite split_points", n, got, exp)
+            # boundaries strictly increasing tuples, strictly inside the full range
+            if got:
+                assert got == sorted(set(got)) and len(got) == len(set(got)), got
+
+        cutoff = dt.datetime(2026, 1, 4)
+        got_w = sorted(conn.keys_above_watermark(table, pk, full, "updated_at", cutoff))
+        exp_w = sorted(ref.keys_above_watermark(table, pk, full, "updated_at", cutoff))
+        # acme/10 (1-09), beta/3 (1-08) are strictly after 1-04 -> in flight.
+        assert got_w == exp_w == [("acme", 10), ("beta", 3)], (got_w, exp_w)
     finally:
         conn.close()
 

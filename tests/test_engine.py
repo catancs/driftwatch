@@ -174,6 +174,161 @@ def test_composite_primary_key():
     assert report.in_sync is False
 
 
+# --- FIX 1: non-integer-key pruning via split_points -------------------------
+
+
+def test_composite_key_large_table_prunes_via_split_points():
+    # Composite PK (region, id) on a large table with sparse drift. The composite
+    # key is NOT integer-interpolatable, so the engine must call the source
+    # connector's split_points() to subdivide instead of reading the whole table as
+    # one leaf. Assert (a) exact diverging keys and (b) real pruning happened:
+    # rows_compared << table size, and segments_scanned > 1 (proof of subdivision).
+    regions = ["eu", "us", "ap"]
+    per_region = 20000
+    n = len(regions) * per_region  # 60,000 rows
+    src = [
+        {"region": reg, "id": i, "name": "row-%s-%d" % (reg, i)}
+        for reg in regions
+        for i in range(per_region)
+    ]
+    dst = [dict(r) for r in src]
+
+    # Inject three sparse divergences spread across the key space.
+    changed = ("us", 12345)   # CHANGED
+    missing = ("eu", 7777)    # MISSING (drop from target)
+    extra = ("ap", 999999)    # EXTRA (only in target)
+    by_key = {(r["region"], r["id"]): r for r in dst}
+    by_key[changed]["name"] = "MUTATED"
+    dst = [r for r in dst if (r["region"], r["id"]) != missing]
+    dst.append({"region": "ap", "id": 999999, "name": "phantom"})
+
+    c = MemoryConnector({"src": src, "dst": dst})
+    cmp = _cmp(
+        primary_key=["region", "id"],
+        compare_columns=["name"],
+        segment_fanout=16,
+        leaf_size=500,
+    )
+    report = compare(c, c, cmp, sleep=_no_sleep)
+
+    assert _drift_map(report) == {
+        changed: DriftKind.CHANGED,
+        missing: DriftKind.MISSING,
+        extra: DriftKind.EXTRA,
+    }
+    # Pruning proof: the old whole-range fallback would fetch all n rows at one leaf.
+    assert report.rows_compared < n, "no pruning happened - fetched everything"
+    assert report.rows_compared < n // 5, (
+        "expected sparse drift to prune most rows, compared %d of %d"
+        % (report.rows_compared, n)
+    )
+    # segments_scanned > 1 proves split_points was used (the old fallback is a single
+    # whole-range leaf, segments_scanned == 1).
+    assert report.segments_scanned > 1, "no subdivision happened - split_points unused"
+
+
+def test_string_uuid_key_large_table_prunes_via_split_points():
+    # Single string/UUID-like key (not integer-interpolatable) on a large table.
+    # Same assertions: exact diverging keys AND real pruning via split_points.
+    n = 50000
+    # zero-padded so lexical order is stable and split_points percentiles are sane.
+    def uid(i: int) -> str:
+        return "u-%08d" % i
+
+    src = [{"uid": uid(i), "name": "row-%d" % i} for i in range(n)]
+    dst = [dict(r) for r in src]
+
+    changed_i = 10101
+    missing_i = 40404
+    extra_uid = "u-99999999"  # beyond the source range → EXTRA on target
+    by_key = {r["uid"]: r for r in dst}
+    by_key[uid(changed_i)]["name"] = "MUTATED"
+    dst = [r for r in dst if r["uid"] != uid(missing_i)]
+    dst.append({"uid": extra_uid, "name": "phantom"})
+
+    c = MemoryConnector({"src": src, "dst": dst})
+    cmp = _cmp(
+        primary_key=["uid"],
+        compare_columns=["name"],
+        segment_fanout=16,
+        leaf_size=500,
+    )
+    report = compare(c, c, cmp, sleep=_no_sleep)
+
+    assert _drift_map(report) == {
+        (uid(changed_i),): DriftKind.CHANGED,
+        (uid(missing_i),): DriftKind.MISSING,
+        (extra_uid,): DriftKind.EXTRA,
+    }
+    assert report.rows_compared < n, "no pruning happened - fetched everything"
+    assert report.rows_compared < n // 5, (
+        "expected sparse drift to prune most rows, compared %d of %d"
+        % (report.rows_compared, n)
+    )
+    assert report.segments_scanned > 1, "no subdivision happened - split_points unused"
+
+
+# --- FIX 2: symmetric watermark - in-place updates are not false positives ----
+
+
+def test_update_lag_fresh_updates_not_reported_old_drift_is():
+    # Build a source and target where some source rows carry a FRESH watermark
+    # (> cutoff) simulating in-place updates that have not yet propagated to the
+    # target, alongside genuinely-OLD divergences that must still surface.
+    #
+    # Without FIX 2: a freshly-updated source row is excluded from the source by the
+    # cutoff, but its stale target copy still passes the cutoff and is wrongly
+    # reported as EXTRA. FIX 2 fetches the in-flight key set once and drops those
+    # keys from the target side so they are never reported.
+    now = dt.datetime(2026, 6, 20, 12, 0, 0, tzinfo=dt.timezone.utc)
+    old = dt.datetime(2026, 6, 20, 9, 0, 0, tzinfo=dt.timezone.utc)   # well before cutoff
+    fresh = dt.datetime(2026, 6, 20, 11, 59, 30, tzinfo=dt.timezone.utc)  # 30s ago, in flight
+    grace = 300.0  # cutoff = 11:55:00 → `fresh` rows are above the cutoff
+
+    # In-flight updates: source row freshly updated (new value + fresh watermark);
+    # target still holds the OLD value with an OLD watermark. Must NOT be reported.
+    inflight_src = [
+        {"id": 100, "name": "new-100", "updated_at": fresh},
+        {"id": 101, "name": "new-101", "updated_at": fresh},
+    ]
+    inflight_tgt = [
+        {"id": 100, "name": "old-100", "updated_at": old},
+        {"id": 101, "name": "old-101", "updated_at": old},
+    ]
+
+    # Genuine OLD drift (both sides old, target diverges) - MUST be reported.
+    genuine_src = [
+        {"id": 200, "name": "alice", "updated_at": old},
+        {"id": 201, "name": "bob", "updated_at": old},   # OLD missing from target
+        {"id": 202, "name": "carol", "updated_at": old},
+    ]
+    genuine_tgt = [
+        {"id": 200, "name": "ALICE-CHANGED", "updated_at": old},  # OLD CHANGED
+        # id=201 absent from target → OLD MISSING
+        {"id": 202, "name": "carol", "updated_at": old},
+        {"id": 203, "name": "ghost", "updated_at": old},  # OLD EXTRA (no source row at all)
+    ]
+
+    src = inflight_src + genuine_src
+    dst = inflight_tgt + genuine_tgt
+    c = MemoryConnector({"src": src, "dst": dst})
+    cmp = _cmp(watermark_column="updated_at", grace_seconds=grace, leaf_size=10)
+    report = compare(c, c, cmp, now=now, sleep=_no_sleep)
+
+    drift = _drift_map(report)
+    # In-flight (freshly updated, not yet synced) keys must NOT be reported at all.
+    assert (100,) not in drift, "fresh in-place update wrongly reported"
+    assert (101,) not in drift, "fresh in-place update wrongly reported"
+    # Genuine OLD drift must be reported exactly.
+    assert drift == {
+        (200,): DriftKind.CHANGED,
+        (201,): DriftKind.MISSING,
+        (203,): DriftKind.EXTRA,
+    }
+    assert report.in_sync is False
+    assert report.cutoff == (now - dt.timedelta(seconds=grace)).isoformat()
+
+
 # --- compare-column resolution ("*") ----------------------------------------
 
 

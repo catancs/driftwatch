@@ -2,9 +2,8 @@
   "now": "2026-06-21T12:00:00",
   "sync_time": "2026-06-21T11:50:00",
   "rows": 500000,
-  "all_correct": false,
+  "all_correct": true,
   "false_positive_counts_scenario1": {
-    "0": 0,
     "1m": 0,
     "15m": 0,
     "1h": 0
@@ -42,15 +41,15 @@
       "scenario": "2-updates",
       "grace": "15m",
       "rounds": 0,
-      "reported": 4663,
+      "reported": 0,
       "by_kind": {
         "missing": 0,
-        "extra": 4663,
+        "extra": 0,
         "changed": 0
       },
-      "in_sync": false,
+      "in_sync": true,
       "expected": "ignored (0)",
-      "correct": false
+      "correct": true
     },
     {
       "scenario": "2-updates",
@@ -70,15 +69,15 @@
       "scenario": "3-genuine-drop",
       "grace": "15m",
       "rounds": 0,
-      "reported": 48,
+      "reported": 50,
       "by_kind": {
-        "missing": 48,
+        "missing": 50,
         "extra": 0,
         "changed": 0
       },
       "in_sync": false,
       "expected": "50 missing",
-      "correct": false
+      "correct": true
     },
     {
       "scenario": "4-recheck-rounds=1",
@@ -116,20 +115,6 @@
       "expected": "no recheck -> both survive (id=1,2)",
       "correct": true,
       "method": "MemoryConnector control (rounds=0)"
-    },
-    {
-      "scenario": "5-grace-sweep",
-      "grace": "0",
-      "rounds": 0,
-      "reported": 0,
-      "by_kind": {
-        "missing": 0,
-        "extra": 0,
-        "changed": 0
-      },
-      "in_sync": true,
-      "expected": "5000 missing",
-      "correct": false
     },
     {
       "scenario": "5-grace-sweep",

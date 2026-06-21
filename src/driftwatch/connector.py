@@ -92,6 +92,42 @@ class Connector(ABC):
         """Like ``fetch_row_hashes`` but restricted to an explicit set of keys. Used by the
         recheck pass; ``cutoff`` may be None to read the freshest data for confirmation."""
 
+    # --- optional pruning / lag helpers (non-abstract; connectors may override) ----
+    # These are backward compatible: a connector that does not implement them keeps the
+    # old behaviour (no extra pruning, no in-flight exclusion). Overriding them enables
+    # pruning for non-integer keys and correct lag handling for in-place updates.
+
+    def split_points(
+        self,
+        table: str,
+        pk_cols: Sequence[str],
+        key_range: KeyRange,
+        watermark_column: Optional[str],
+        cutoff: Optional[Any],
+        n: int,
+    ) -> Optional[List[Key]]:
+        """Up to ``n - 1`` boundary keys dividing the rows in ``key_range`` (watermark-filtered)
+        into ~``n`` equal-count buckets: strictly increasing, strictly inside ``(lo, hi)``. The
+        engine forms half-open sub-ranges ``[lo, b1), [b1, b2), ..., [bk, hi)`` from them. Return
+        None if the range cannot be split (the engine then treats it as a leaf). Overriding this
+        lets composite and string/UUID keys prune instead of reading the whole table. Default: None.
+        """
+        return None
+
+    def keys_above_watermark(
+        self,
+        table: str,
+        pk_cols: Sequence[str],
+        key_range: KeyRange,
+        watermark_column: Optional[str],
+        cutoff: Optional[Any],
+    ) -> List[Key]:
+        """Keys in ``key_range`` whose watermark is strictly greater than ``cutoff`` (the in-flight
+        rows, too fresh to have synced). The engine drops these from the target side so an
+        updated-but-not-yet-propagated row is not reported as drift. Return [] when there is no
+        watermark column or nothing qualifies. Default: []."""
+        return []
+
     def close(self) -> None:  # pragma: no cover - optional cleanup hook
         """Release any underlying connection. Default no-op."""
 

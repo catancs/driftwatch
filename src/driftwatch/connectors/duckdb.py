@@ -402,6 +402,113 @@ class DuckDBConnector(Connector):
                 out[key] = int(row[n_pk])
         return out
 
+    # --- pruning / lag helpers -------------------------------------------------
+
+    def split_points(
+        self,
+        table: str,
+        pk_cols: Sequence[str],
+        key_range: KeyRange,
+        watermark_column: Optional[str],
+        cutoff: Optional[Any],
+        n: int,
+    ) -> Optional[List[Key]]:
+        """Up to ``n - 1`` interior boundary keys splitting ``key_range`` into ~``n``
+        equal-count buckets.
+
+        Strategy (works identically for single-column int/text and composite keys):
+        number the watermark-filtered, in-range rows with
+        ``ROW_NUMBER() OVER (ORDER BY pk...)`` (1-based ``rn``) alongside
+        ``COUNT(*) OVER ()`` (``total``), then pick the rows whose ``rn`` lands on
+        ``round(total * i / n)`` for ``i`` in ``1..n-1``. Each picked row's full pk
+        tuple is a boundary. The engine forms half-open sub-ranges
+        ``[lo, b1), [b1, b2), ..., [bk, hi)`` from them, so boundaries must be strictly
+        increasing and strictly inside ``(lo, hi)``: we de-dup, drop any boundary equal
+        to the segment's low key (its first row), and return None if there are <= 1 rows
+        or no valid interior boundary survives.
+        """
+        if n is None or n < 2:
+            return None
+        qtable = self._quote_table(table)
+        pk_list = list(pk_cols)
+        if not pk_list:
+            return None
+        idents = [self._quote_ident(c) for c in pk_list]
+        pk_idents = ", ".join(idents)
+        order_by = ", ".join(f"{i} ASC" for i in idents)
+
+        params: List[Any] = []
+        where = self._where(
+            self._range_predicate(pk_list, key_range, params),
+            self._cutoff_predicate(watermark_column, cutoff, params),
+        )
+        # Window-numbered selection of every in-range row, ordered by the full key.
+        # ROW_NUMBER gives the 1-based position; COUNT(*) OVER () repeats the segment
+        # total on every row so the outer query can pick target positions without a
+        # second scan.
+        numbered = (
+            f"SELECT {pk_idents}, "
+            f"ROW_NUMBER() OVER (ORDER BY {order_by}) AS __rn, "
+            f"COUNT(*) OVER () AS __total "
+            f"FROM {qtable}{where}"
+        )
+        # Target ranks: round(total * i / n) for i in 1..n-1. Compute in SQL so it stays
+        # correct for any total. DuckDB's ROUND() is round-half-up, matching the spec's
+        # round(total*i/n); positions are integers so ties are vanishingly rare and either
+        # choice yields a valid split. We also require the picked row to NOT be the first
+        # row (__rn > 1) so a boundary can never equal the low key.
+        offsets = ", ".join(str(i) for i in range(1, n))
+        sql = (
+            f"WITH numbered AS ({numbered}) "
+            f"SELECT DISTINCT {pk_idents} FROM numbered "
+            f"WHERE __total > 1 AND __rn > 1 AND __rn IN ("
+            f"  SELECT CAST(ROUND(__total * i / {n}.0) AS BIGINT) "
+            f"  FROM numbered, (SELECT unnest([{offsets}]) AS i) "
+            f") ORDER BY {order_by}"
+        )
+        rows = self._con.execute(sql, params).fetchall()
+        if not rows:
+            return None
+        n_pk = len(pk_list)
+        bounds: List[Key] = []
+        for row in rows:
+            key = tuple(row[:n_pk])
+            # DISTINCT + ORDER BY already make these unique and increasing; the guard is
+            # belt-and-suspenders for any backend quirk.
+            if not bounds or key > bounds[-1]:
+                bounds.append(key)
+        return bounds or None
+
+    def keys_above_watermark(
+        self,
+        table: str,
+        pk_cols: Sequence[str],
+        key_range: KeyRange,
+        watermark_column: Optional[str],
+        cutoff: Optional[Any],
+    ) -> List[Key]:
+        """Keys in ``key_range`` whose watermark is STRICTLY greater than ``cutoff``.
+
+        These are the in-flight rows (too fresh to have synced); the engine drops them
+        from the target side. Returns [] when there is no watermark column or no cutoff,
+        mirroring the Memory reference. NULL watermarks are excluded (``> ?`` is never
+        true for NULL).
+        """
+        if watermark_column is None or cutoff is None:
+            return []
+        qtable = self._quote_table(table)
+        pk_list = list(pk_cols)
+        pk_idents = ", ".join(self._quote_ident(c) for c in pk_list)
+        wm = self._quote_ident(watermark_column)
+
+        params: List[Any] = []
+        range_pred = self._range_predicate(pk_list, key_range, params)
+        params.append(cutoff)
+        above_pred = f"({wm} IS NOT NULL AND {wm} > ?)"
+        where = self._where(range_pred, above_pred)
+        sql = f"SELECT {pk_idents} FROM {qtable}{where}"
+        return [tuple(row) for row in self._con.execute(sql, params).fetchall()]
+
     def close(self) -> None:
         try:
             self._con.close()

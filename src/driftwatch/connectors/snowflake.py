@@ -458,6 +458,126 @@ class SnowflakeConnector(Connector):
             out[key] = int(row[n])
         return out
 
+    # --- optional pruning / lag helpers ---------------------------------------
+
+    def split_points(self, table, pk_cols, key_range, watermark_column, cutoff, n):
+        """Up to ``n - 1`` boundary keys splitting the watermark-filtered rows of
+        ``key_range`` into ~``n`` equal-count buckets.
+
+        Matches the :class:`MemoryConnector` oracle exactly:
+
+          * order the selected rows by the full PK tuple (row-value / lexicographic
+            order, identical to ``_range_predicate``'s ``(a, b) >= (?, ?)`` semantics
+            and to Python tuple comparison),
+          * take the key at 0-based position ``(total * i) // n`` for ``i`` in
+            ``1 .. n - 1`` (floor division - the same integer arithmetic the reference
+            uses, NOT ``round``),
+          * keep boundaries strictly inside ``(lo, hi)`` by dropping any that equals the
+            first selected key, and de-duplicate while keeping them strictly increasing.
+
+        Returns ``None`` when the range holds <= 1 row (or ``n < 2``) so the engine
+        treats the range as a leaf.
+
+        SQL strategy: a single pass with window functions over the filtered rows -
+        ``ROW_NUMBER() OVER (ORDER BY <pk...>)`` for the position and ``COUNT(*) OVER ()``
+        for the total - then a row-number filter computed entirely in SQL so only the
+        boundary rows (at most ``n - 1`` of them) cross the wire::
+
+            SELECT <pk...>
+            FROM (
+              SELECT <pk...>,
+                     ROW_NUMBER() OVER (ORDER BY <pk...>) AS rn,
+                     COUNT(*) OVER () AS total
+              FROM <table><where>
+            )
+            WHERE total > 1
+              AND rn - 1 IN (FLOOR(total * 1 / n), ..., FLOOR(total * (n-1) / n))
+              AND rn - 1 > 0            -- strictly after the first (low-bound) key
+            ORDER BY <pk...>
+
+        ``ROW_NUMBER`` is 1-based, so ``rn - 1`` is the 0-based index the reference
+        indexes with. ``FLOOR(total * i / n)`` reproduces Python's ``(total * i) // n``
+        for the non-negative integers involved. The de-dup of equal indices and the
+        ``> 0`` guard are done in SQL; Python only assembles tuples and enforces strict
+        monotonicity as a final belt-and-braces pass.
+        """
+        if n < 2:
+            return None
+
+        order_cols = ", ".join(self._quote_col(c) for c in pk_cols)
+        select_cols = order_cols  # same list, in key order
+
+        binds: List[Any] = []
+        where = self._where(pk_cols, key_range, watermark_column, cutoff, binds)
+
+        # Distinct 0-based target indices (drop the 0 index: that is the low-bound key,
+        # which must be strictly excluded). FLOOR(total*i/n) is expressed in SQL so the
+        # arithmetic happens against the *actual* row count, exactly like the reference.
+        idx_terms = ", ".join(
+            "FLOOR(total * {i} / {n})".format(i=i, n=n) for i in range(1, n)
+        )
+
+        sql = (
+            "SELECT {cols} FROM ("
+            "SELECT {cols}, "
+            "ROW_NUMBER() OVER (ORDER BY {order}) AS rn, "
+            "COUNT(*) OVER () AS total "
+            "FROM {tbl}{where}"
+            ") "
+            "WHERE total > 1 AND (rn - 1) > 0 AND (rn - 1) IN ({idx}) "
+            "ORDER BY {order}"
+        ).format(
+            cols=select_cols,
+            order=order_cols,
+            tbl=self._qualified_table_sql(table),
+            where=where,
+            idx=idx_terms,
+        )
+
+        rows = self._query(sql, binds)
+        if not rows:
+            return None
+
+        bounds: List[Key] = []
+        for row in rows:
+            b = tuple(row)
+            # SQL already guarantees ordering + distinct indices, but enforce strict
+            # monotonicity here too so a degenerate engine/driver can't slip a dup or a
+            # boundary equal to the previous one through.
+            if not bounds or b > bounds[-1]:
+                bounds.append(b)
+        return bounds or None
+
+    def keys_above_watermark(self, table, pk_cols, key_range, watermark_column, cutoff):
+        """PK tuples in ``key_range`` whose watermark is STRICTLY greater than ``cutoff``.
+
+        These are the in-flight rows (updated after the cutoff, not yet propagated). The
+        engine drops them from the target side so a fresh-but-unsynced update is not
+        misreported as drift.
+
+        Returns ``[]`` when there is no watermark column or no cutoff (nothing can be
+        "above" an absent cutoff), mirroring the reference. The watermark predicate is
+        ``wm IS NOT NULL AND wm > %s`` (the strict complement of ``_cutoff_predicate``'s
+        ``wm <= %s``); ``cutoff`` is bound as a parameter using the same paramstyle.
+        """
+        if watermark_column is None or cutoff is None:
+            return []
+
+        binds: List[Any] = []
+        preds: List[str] = []
+        preds.extend(self._range_predicate(pk_cols, key_range, binds))
+        wm = self._quote_col(watermark_column)
+        binds.append(cutoff)
+        preds.append("({wm} IS NOT NULL AND {wm} > %s)".format(wm=wm))
+
+        where = (" WHERE " + " AND ".join(preds)) if preds else ""
+        pk_sql = ", ".join(self._quote_col(c) for c in pk_cols)
+        sql = "SELECT {pk} FROM {tbl}{where}".format(
+            pk=pk_sql, tbl=self._qualified_table_sql(table), where=where
+        )
+        rows = self._query(sql, binds)
+        return [tuple(row) for row in rows]
+
     def close(self) -> None:
         try:
             self._conn.close()

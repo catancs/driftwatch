@@ -334,6 +334,205 @@ def _run_conformance(pg, table):
                    mem.checksum(table, pk, ["ratio"], full, None, None, fp))
 
 
+# --- large-scale split_points / keys_above_watermark conformance ---------------
+
+# These exercise the two pruning/lag helpers (``split_points`` and
+# ``keys_above_watermark``) at scale and across the three key shapes the engine cares
+# about: a single integer pk, a single text pk, and a composite pk. The data is built
+# once in Python (so MemoryConnector is the oracle) and loaded into a real table, then:
+#
+#   * ``keys_above_watermark`` must equal MemoryConnector's result *as a set* for several
+#     cutoffs (exact agreement is required - it is a deterministic SELECT).
+#   * ``split_points`` need NOT match MemoryConnector's boundaries, but its sub-ranges must
+#     form an exact, gapless, non-overlapping partition of the selected rows: the per-sub-
+#     range counts (taken via the connector's own ``checksum`` over each ``[b_i, b_{i+1})``)
+#     must sum back to the total, and the boundaries must be strictly increasing and
+#     strictly inside ``(lo, hi)``.
+#
+# ~50,000 rows keeps the windowed ROW_NUMBER()/COUNT(*) path honest without being slow.
+
+_SPLIT_N_ROWS = 50_000
+
+
+def _split_rows_int():
+    """Integer-pk rows. ``wm`` is a monotonically increasing integer watermark."""
+    rows = []
+    base = dt.datetime(2026, 1, 1, 0, 0, 0)
+    for i in range(_SPLIT_N_ROWS):
+        rows.append({
+            "id": i,                       # 0..N-1, dense integer pk
+            "payload": "row-%d" % i,
+            "wm": base + dt.timedelta(seconds=i),
+        })
+    return rows
+
+
+def _split_rows_text():
+    """Text-pk rows. Keys are zero-padded so lexical order is well-defined and unique."""
+    rows = []
+    base = dt.datetime(2026, 1, 1, 0, 0, 0)
+    for i in range(_SPLIT_N_ROWS):
+        rows.append({
+            "k": "key-%08d" % i,           # text pk, lexically sortable & unique
+            "payload": i,
+            "wm": base + dt.timedelta(seconds=i),
+        })
+    return rows
+
+
+def _split_rows_composite():
+    """Composite-pk rows over (region, id). A handful of regions, dense ids within each."""
+    rows = []
+    regions = ["af", "ap", "eu", "na", "sa"]
+    base = dt.datetime(2026, 1, 1, 0, 0, 0)
+    per = _SPLIT_N_ROWS // len(regions)
+    i = 0
+    for region in regions:
+        for j in range(per):
+            rows.append({
+                "region": region,
+                "id": j,
+                "payload": "r%s-%d" % (region, j),
+                "wm": base + dt.timedelta(seconds=i),
+            })
+            i += 1
+    return rows
+
+
+_SPLIT_SPECS = {
+    # name: (pk_cols, ddl, insert_cols, rows-builder)
+    "int": (
+        ["id"],
+        "id integer NOT NULL, payload text NOT NULL, wm timestamp without time zone",
+        ["id", "payload", "wm"],
+        _split_rows_int,
+    ),
+    "text": (
+        ["k"],
+        "k text NOT NULL, payload integer NOT NULL, wm timestamp without time zone",
+        ["k", "payload", "wm"],
+        _split_rows_text,
+    ),
+    "composite": (
+        ["region", "id"],
+        "region text NOT NULL, id integer NOT NULL, payload text NOT NULL, "
+        "wm timestamp without time zone",
+        ["region", "id", "payload", "wm"],
+        _split_rows_composite,
+    ),
+}
+
+
+def _load_pg_generic(pg, schema_table, ddl_cols, insert_cols, rows):
+    """Create ``schema_table`` with ``ddl_cols`` and bulk-load ``rows`` via COPY."""
+    from psycopg import sql as S
+
+    raw = pg._conn
+    raw.rollback()
+    prev_ro = raw.read_only
+    raw.read_only = False
+    raw.autocommit = True
+    schema, _, table = schema_table.partition(".")
+    ident = S.Identifier(schema, table) if schema else S.Identifier(table)
+    with raw.cursor() as cur:
+        cur.execute(S.SQL("DROP TABLE IF EXISTS {}").format(ident))
+        cur.execute(
+            S.SQL("CREATE TABLE {tbl} ({cols})").format(tbl=ident, cols=S.SQL(ddl_cols))
+        )
+        col_idents = S.SQL(", ").join(S.Identifier(c) for c in insert_cols)
+        copy_sql = S.SQL("COPY {tbl} ({cols}) FROM STDIN").format(
+            tbl=ident, cols=col_idents
+        )
+        with cur.copy(copy_sql) as copy:
+            for row in rows:
+                copy.write_row([row[c] for c in insert_cols])
+    raw.commit()
+    raw.autocommit = False
+    raw.read_only = prev_ro
+    raw.rollback()
+
+
+def _count_in_range(conn, table, pk_cols, rng):
+    """Row count over ``rng`` via the connector's own checksum (no cutoff)."""
+    return conn.checksum(table, pk_cols, [], rng, None, None, _FP).count
+
+
+def _run_split_conformance(pg, table_prefix):
+    """Assert split_points partitions exactly and keys_above_watermark equals Memory."""
+    for shape, (pk_cols, ddl, insert_cols, builder) in _SPLIT_SPECS.items():
+        rows = builder()
+        table = "%s_%s" % (table_prefix, shape)
+        mem = MemoryConnector({table: rows})
+        try:
+            _load_pg_generic(pg, table, ddl, insert_cols, rows)
+
+            full = KeyRange()
+            total = _count_in_range(pg, table, pk_cols, full)
+            assert total == len(rows), (shape, total, len(rows))
+
+            # --- keys_above_watermark: exact set agreement with Memory --------
+            wms = sorted({r["wm"] for r in rows})
+            for cutoff in (wms[0], wms[len(wms) // 3], wms[len(wms) // 2], wms[-1]):
+                pg_set = set(pg.keys_above_watermark(table, pk_cols, full, "wm", cutoff))
+                mem_set = set(mem.keys_above_watermark(table, pk_cols, full, "wm", cutoff))
+                _assert_eq("keys_above_watermark[%s] cutoff=%s" % (shape, cutoff),
+                           pg_set, mem_set)
+            # None/None short-circuit -> empty on both sides.
+            _assert_eq("keys_above_watermark[%s] no-wm" % shape,
+                       pg.keys_above_watermark(table, pk_cols, full, None, None),
+                       mem.keys_above_watermark(table, pk_cols, full, None, None))
+
+            # --- split_points: must be a valid balanced partition -------------
+            bounds = pg.bounds_full = pg.pk_bounds(table, pk_cols, None, None)
+            assert bounds is not None, shape
+            lo, hi_inclusive = bounds.lo, bounds.hi
+            for n in (2, 4, 8, 16):
+                sp = pg.split_points(table, pk_cols, full, None, None, n)
+                assert sp is not None, (shape, n)
+                # strictly increasing
+                assert all(sp[i] < sp[i + 1] for i in range(len(sp) - 1)), (shape, n, sp)
+                # strictly inside (lo, hi]: every boundary > lo (the smallest key) and
+                # <= the max key (boundaries are real keys, so they never exceed it).
+                assert all(b > lo for b in sp), (shape, n, sp[:3], lo)
+                assert all(b <= hi_inclusive for b in sp), (shape, n)
+                # at most n-1 boundaries
+                assert len(sp) <= n - 1, (shape, n, len(sp))
+
+                # Partition check: the sub-ranges [lo_seg, b1), [b1, b2), ..., [bk, None)
+                # must cover every row exactly once. We build the engine's half-open
+                # segments from the boundaries and sum their counts via the connector's
+                # own checksum, then compare to the total.
+                seg_los = [None] + list(sp)          # first segment is unbounded-low
+                seg_his = list(sp) + [None]           # last segment is unbounded-high
+                covered = 0
+                for slo, shi in zip(seg_los, seg_his):
+                    covered += _count_in_range(pg, table, pk_cols, KeyRange(lo=slo, hi=shi))
+                assert covered == total, (shape, n, covered, total)
+
+                # ~equal buckets: no bucket should be wildly off. With dense keys the
+                # interior buckets are total/n +/- 1; assert each is within a loose factor.
+                expect = total / n
+                for slo, shi in zip(seg_los, seg_his):
+                    c = _count_in_range(pg, table, pk_cols, KeyRange(lo=slo, hi=shi))
+                    assert c <= expect * 2 + 5, (shape, n, c, expect)
+
+            # --- split_points returns None on empty / single-row ranges -------
+            # Empty range: lo == hi (half-open => no rows).
+            empty = KeyRange(lo=lo, hi=lo)
+            assert pg.split_points(table, pk_cols, empty, None, None, 4) is None, shape
+            assert _count_in_range(pg, table, pk_cols, empty) == 0, shape
+
+            # Single-row range: [lo, lo+epsilon) capturing exactly the first key. For a
+            # dense integer/composite key we can bump the last pk component; for text we
+            # take the second distinct key as the exclusive hi.
+            sorted_keys = sorted(mem.fetch_row_hashes(table, pk_cols, [], full, None, None, _FP).keys())
+            single = KeyRange(lo=sorted_keys[0], hi=sorted_keys[1])
+            assert _count_in_range(pg, table, pk_cols, single) == 1, (shape, single)
+            assert pg.split_points(table, pk_cols, single, None, None, 4) is None, shape
+        finally:
+            _drop(pg, table)
+
+
 # --- pytest entrypoints --------------------------------------------------------
 
 
@@ -359,6 +558,23 @@ def test_postgres_conformance():
         _run_conformance(pg, table)
     finally:
         _drop(pg, table)
+        pg.close()
+
+
+def test_postgres_split_points_and_watermark():
+    """pytest entrypoint for split_points / keys_above_watermark; skips without PG."""
+    try:
+        pg = _connect()
+    except _Skip as s:
+        if pytest is not None:
+            pytest.skip(str(s))
+        else:  # pragma: no cover
+            print("SKIP:", s)
+            return
+    prefix = "public.driftwatch_split_%s" % uuid.uuid4().hex[:8]
+    try:
+        _run_split_conformance(pg, prefix)
+    finally:
         pg.close()
 
 
@@ -402,6 +618,18 @@ if __name__ == "__main__":
         print("ERROR test_postgres_conformance -", type(e).__name__, e)
     finally:
         _drop(pg, table)
+
+    split_prefix = "public.driftwatch_split_%s" % uuid.uuid4().hex[:8]
+    try:
+        _run_split_conformance(pg, split_prefix)
+        print("PASS test_postgres_split_points_and_watermark (prefix=%s)" % split_prefix)
+    except AssertionError as e:
+        failures += 1
+        print("FAIL test_postgres_split_points_and_watermark -", e)
+    except Exception as e:  # noqa: BLE001
+        failures += 1
+        print("ERROR test_postgres_split_points_and_watermark -", type(e).__name__, e)
+    finally:
         pg.close()
 
     print("\n%d failure(s)" % failures)

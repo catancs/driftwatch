@@ -82,6 +82,22 @@ def compare(
     segments_scanned = 0
     candidates: List[DriftKey] = []
 
+    # --- 2b. fetch the in-flight key set ONCE (symmetric watermark) -----------
+    # When a watermark is configured, a source row that was just updated carries a
+    # fresh watermark (> cutoff) and is excluded from the SOURCE by the cutoff. Its
+    # stale copy on the TARGET still passes the cutoff, so without correction it
+    # would be wrongly reported as EXTRA. We fetch the keys that are too fresh to
+    # have synced and drop them from the TARGET side at every leaf so an
+    # updated-but-not-yet-propagated row is never reported as drift.
+    # No watermark → empty set → behaviour unchanged.
+    inflight: set = set()
+    if wm is not None:
+        inflight = set(
+            source.keys_above_watermark(
+                cmp.source_table, pk_cols, KeyRange(), wm, cutoff
+            )
+        )
+
     if src_bounds is None and tgt_bounds is None:
         # both empty within cutoff → trivially in sync
         pass
@@ -100,7 +116,13 @@ def compare(
                 cmp.target_table, pk_cols, compare_cols, full, wm, cutoff, fp
             )
             rows_compared += len(tgt_hashes)
-            candidates = [DriftKey(key=k, kind=DriftKind.EXTRA) for k in tgt_hashes]
+            # symmetric watermark: a target row whose source copy is in flight (fresh
+            # watermark > cutoff) is not yet synced, not stale → not EXTRA.
+            candidates = [
+                DriftKey(key=k, kind=DriftKind.EXTRA)
+                for k in tgt_hashes
+                if k not in inflight
+            ]
         segments_scanned += 1
     else:
         # both sides populated → build the global range and walk it recursively.
@@ -128,6 +150,7 @@ def compare(
             wm,
             cutoff,
             global_range,
+            inflight,
         )
         candidates = result.drift_keys
         rows_compared = result.rows_compared
@@ -215,6 +238,7 @@ def _walk(
     wm: Optional[str],
     cutoff: object,
     key_range: KeyRange,
+    inflight: set,
 ) -> _WalkResult:
     """Iterative driver for the recursive segment walk (avoids deep call stacks on
     very large/sparse tables). Maintains an explicit work-stack of ranges."""
@@ -235,6 +259,7 @@ def _walk(
             rng,
             result,
             stack,
+            inflight,
         )
     return result
 
@@ -251,6 +276,7 @@ def _process_segment(
     rng: KeyRange,
     result: _WalkResult,
     stack: List[KeyRange],
+    inflight: set,
 ) -> None:
     """Handle one segment: prune, recurse, or fall to a leaf set-diff."""
     src_ck: Checksum = source.checksum(
@@ -265,10 +291,12 @@ def _process_segment(
         result.segments_scanned += 1
         return
 
-    max_count = max(src_ck.count, tgt_ck.count)
-    sub_ranges = _split(rng, pk_cols, cmp.segment_fanout) if max_count > cmp.leaf_size else None
+    if max(src_ck.count, tgt_ck.count) > cmp.leaf_size:
+        sub_ranges = _split_segment(source, cmp, pk_cols, wm, cutoff, rng)
+    else:
+        sub_ranges = None
 
-    # (c) small enough OR not numerically splittable → exact leaf set-diff.
+    # (c) small enough OR not splittable → exact leaf set-diff.
     if sub_ranges is None:
         result.segments_scanned += 1
         _leaf_diff(
@@ -282,6 +310,7 @@ def _process_segment(
             cutoff,
             rng,
             result,
+            inflight,
         )
         return
 
@@ -301,6 +330,7 @@ def _leaf_diff(
     cutoff: object,
     rng: KeyRange,
     result: _WalkResult,
+    inflight: set,
 ) -> None:
     """Fetch every row hash on both sides over ``rng`` and classify each key."""
     src_hashes: Dict[Key, int] = source.fetch_row_hashes(
@@ -309,6 +339,14 @@ def _leaf_diff(
     tgt_hashes: Dict[Key, int] = target.fetch_row_hashes(
         cmp.target_table, pk_cols, compare_cols, rng, wm, cutoff, fp
     )
+    # symmetric watermark: drop in-flight keys from BOTH sides before the set-diff.
+    # They are already absent from the source (excluded by the cutoff); removing
+    # them from the target stops an updated-but-not-yet-synced row from being
+    # reported as EXTRA/CHANGED. inflight is empty when no watermark is configured.
+    if inflight:
+        for k in inflight:
+            src_hashes.pop(k, None)
+            tgt_hashes.pop(k, None)
     # rows_compared is the number of distinct rows examined at this leaf.
     result.rows_compared += len(set(src_hashes) | set(tgt_hashes))
 
@@ -324,6 +362,55 @@ def _leaf_diff(
 
 
 # --- range splitting ----------------------------------------------------------
+
+
+def _split_segment(
+    source: Connector,
+    cmp: ComparisonConfig,
+    pk_cols: Sequence[str],
+    wm: Optional[str],
+    cutoff: object,
+    rng: KeyRange,
+) -> Optional[List[KeyRange]]:
+    """Decide how to subdivide an oversized segment.
+
+    Fast path (unchanged from v1): a single-column integer PK with concrete,
+    distinct bounds is split by pure integer interpolation - NO database scan, so
+    the common surrogate-id case stays cheap. We must NOT call ``split_points`` for
+    it (that would add a needless scan).
+
+    Fallback (FIX 1): composite / string / UUID keys - or an integer segment whose
+    bounds are not interpolatable (e.g. an unbounded end) - now ask the SOURCE
+    connector for percentile-style boundary keys via ``split_points``. If it returns
+    a non-empty, strictly-increasing list ``b1<...<bk`` strictly inside ``(lo, hi)``
+    we form half-open sub-ranges ``[lo,b1),[b1,b2),...,[bk,hi)`` that partition
+    ``[lo,hi)`` exactly (no gaps, no overlap). If it returns None, the caller keeps
+    the old whole-range leaf behaviour.
+    """
+    # 1) integer fast path - try the pure-arithmetic split first, no scan.
+    integer_split = _split(rng, pk_cols, cmp.segment_fanout)
+    if integer_split is not None:
+        return integer_split
+
+    # A single-column integer PK with concrete distinct bounds was handled above.
+    # Reaching here means either a non-integer/composite key, or an integer segment
+    # whose bounds can't be interpolated (unbounded/adjacent). Ask the source to
+    # split by row percentiles instead of reading the whole range as one leaf.
+    boundaries = source.split_points(
+        cmp.source_table, pk_cols, rng, wm, cutoff, cmp.segment_fanout
+    )
+    if not boundaries:
+        return None  # not splittable → caller treats rng as a single leaf
+
+    # Build [lo, b1), [b1, b2), ..., [bk, hi). The first sub-range inherits rng.lo
+    # and the last inherits rng.hi exactly, so the union equals the parent range.
+    sub_ranges: List[KeyRange] = []
+    prev: Optional[Key] = rng.lo
+    for b in boundaries:
+        sub_ranges.append(KeyRange(lo=prev, hi=b))
+        prev = b
+    sub_ranges.append(KeyRange(lo=prev, hi=rng.hi))
+    return sub_ranges
 
 
 def _split(

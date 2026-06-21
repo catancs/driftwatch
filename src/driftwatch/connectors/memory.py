@@ -105,3 +105,29 @@ class MemoryConnector(Connector):
             if key in wanted:
                 out[key] = self._row_hash(row, pk_cols, compare_cols, float_precision)
         return out
+
+    def split_points(self, table, pk_cols, key_range, watermark_column, cutoff, n):
+        keys = sorted(k for k, _ in self._selected(table, pk_cols, key_range, watermark_column, cutoff))
+        if len(keys) <= 1 or n < 2:
+            return None
+        bounds: List[Key] = []
+        for i in range(1, n):
+            idx = (len(keys) * i) // n
+            if 0 < idx < len(keys):
+                b = keys[idx]
+                # strictly inside (lo, hi) and strictly increasing
+                if b > keys[0] and (not bounds or b > bounds[-1]):
+                    bounds.append(b)
+        return bounds or None
+
+    def keys_above_watermark(self, table, pk_cols, key_range, watermark_column, cutoff):
+        if watermark_column is None or cutoff is None:
+            return []
+        out: List[Key] = []
+        for row in self._rows(table):
+            wm = row.get(watermark_column)
+            if wm is not None and wm > cutoff:  # strictly fresher than the cutoff = in flight
+                key = self._key_of(row, pk_cols)
+                if key_range is None or self._in_range(key, key_range):
+                    out.append(key)
+        return out
