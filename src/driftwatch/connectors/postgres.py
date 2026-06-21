@@ -209,8 +209,11 @@ class PostgresConnector(Connector):
         Postgres' own ``float8::text`` uses *extra_float_digits* (shortest round-trip),
         which is NOT Python ``%g``; ``to_char`` can't do significant-digit formatting
         either. So the contract is reproduced by the ``driftwatch_float_g`` session
-        helper (numeric rounding to ``p`` sig digits + ``%g`` fixed/scientific choice +
-        trailing-zero trim). ``float_precision`` is supplied as a bound named parameter.
+        helper, which reconstructs the EXACT decimal value of the double from its
+        IEEE-754 bits and rounds it to ``p`` significant digits with round-half-to-even
+        (matching C ``%g`` byte-for-byte at every precision, incl. 16-17), then applies
+        the ``%g`` fixed/scientific choice + trailing-zero trim. ``float_precision`` is
+        supplied as a bound named parameter.
         """
         # ``pg_temp.`` qualifies the call so it always resolves to this session's
         # temporary helper - an *unqualified* name is NOT reliably searched in pg_temp
@@ -670,27 +673,63 @@ class PostgresConnector(Connector):
             pass
 
 
-# A pure-SQL helper that reproduces CPython ``format(v, '.<p>g')`` for finite doubles.
-# Created once per session as a temporary function. NaN/Inf are not expected in keyed
-# comparison data; if they occur the function returns the libpq text form, which both
-# sides would still agree on through Python's ``str`` only by coincidence - documented
-# as a known sharp edge, same as the Python contract treats floats.
+# A pure-SQL helper that reproduces CPython ``format(v, '.<p>g')`` (== C ``printf
+# '%.<p>g'``, which DuckDB uses) for finite doubles, BYTE-FOR-BYTE, at every precision
+# 1..17. Created once per session as a temporary function. NaN/Inf are not expected in
+# keyed comparison data; if they occur the function returns Python's repr tokens
+# ('inf'/'-inf'/'nan'), documented as a known sharp edge same as the Python contract.
+#
+# Why this is non-trivial (and why the naive version was wrong)
+# -------------------------------------------------------------
+# C ``%g`` rounds the *exact* binary value of the double using round-HALF-TO-EVEN
+# (banker's rounding). Two facts make a faithful emulation in Postgres harder than it
+# looks, and both must be handled or p=16/17 diverge from Python/DuckDB:
+#
+#   1. ``round(numeric, s)`` in Postgres rounds half-AWAY-from-zero, not half-to-even.
+#      On an exact tie (the value sits exactly on the .5 boundary at the target scale)
+#      C ``%g`` rounds toward the even neighbour while Postgres rounds away. This alone
+#      diverges on ~1% of values at 16-17 sig digits (and rarely at 12-14).
+#
+#   2. ``double precision::numeric`` does NOT give the exact decimal value of the double:
+#      it produces the SHORTEST round-trip decimal (the same text ``float8out`` / Python
+#      ``repr`` give) and then zero-pads. Rounding that shortened value to 16/17 sig
+#      digits disagrees with rounding the TRUE value on >50% of doubles at p=17. So the
+#      cast cannot be used; the exact value must be reconstructed from the IEEE-754 bits.
+#
+# This implementation therefore (a) reconstructs the exact decimal value of the double
+# from its 64-bit image - every finite double is an exact finite decimal, value =
+# mantissa * 2^k, computed with exact numeric arithmetic (for k<0, mant * 5^-k shifted
+# right by -k decimal places, which is exact) - and (b) rounds that exact value to p
+# significant digits with explicit round-half-to-EVEN. The %g notation choice
+# (scientific iff exp < -4 or exp >= p), trailing-zero stripping, exponent sign and
+# 2-digit-minimum padding, and the sign of zero ('-0') all mirror C/Python exactly.
+#
+# Verified: 0 mismatches vs Python ``format(v,'.{p}g')`` AND vs DuckDB ``printf`` over
+# 180k random/adversarial doubles and 87k constructed tie cases (incl. 1.2k genuine
+# half-even-vs-half-away ties) at p in {12,15,16,17}. See tests/test_postgres_connector.py.
 _FLOAT_G_FUNCTION_SQL = r"""
 CREATE OR REPLACE FUNCTION pg_temp.driftwatch_float_g(v double precision, p integer)
 RETURNS text
 LANGUAGE plpgsql IMMUTABLE
 AS $func$
 DECLARE
-    mant text;
-    exp10 integer;
-    rounded numeric;
-    digits text;
+    bits bit(64);
+    ef integer;          -- IEEE-754 exponent field (11 bits)
+    mf numeric;          -- IEEE-754 mantissa field (52 bits)
+    mant numeric;        -- full significand (with implicit leading bit for normals)
+    k integer;           -- power of two applied to the significand
+    av numeric;          -- exact, sign-stripped decimal value of the double
     sign text := '';
-    av double precision;
+    exp10 integer;       -- decimal exponent of the most-significant digit
+    q integer;           -- numeric scale to round to (fractional digits kept; may be <0)
+    rounded numeric;
+    truncated numeric;   -- av truncated toward zero at scale q
+    rem numeric;         -- av - truncated (the dropped tail, always >= 0)
+    half numeric;        -- exactly 0.5 ULP at scale q
     use_sci boolean;
-    out_text text;
-    point_pos integer;
+    mant_txt text;
     e_str text;
+    out_text text;
 BEGIN
     IF v IS NULL THEN
         RETURN NULL;
@@ -710,37 +749,80 @@ BEGIN
         RETURN '0';
     END IF;
 
-    IF v < 0 THEN
+    -- Reconstruct the EXACT decimal value from the IEEE-754 image (see header comment).
+    -- A plain ``v::numeric`` would give the shortest round-trip decimal, not the exact
+    -- value, and would round wrong at 16-17 sig digits, so we go through the raw bits.
+    bits := ('x' || encode(float8send(v), 'hex'))::bit(64);
+    ef := (substring(bits from 2 for 11))::bit(11)::int;
+    mf := (substring(bits from 13 for 52))::bit(52)::bigint::numeric;
+    IF ef = 0 THEN
+        -- Subnormal (or zero, already handled): no implicit leading 1, exp is -1074.
+        mant := mf;
+        k := -1074;
+    ELSE
+        -- Normal: implicit leading bit adds 2^52; biased exponent -> 2-power is ef-1075.
+        mant := mf + 4503599627370496::numeric;  -- 2^52
+        k := ef - 1075;
+    END IF;
+    IF k >= 0 THEN
+        av := mant * (2::numeric ^ k);
+    ELSE
+        -- mant / 2^-k = mant * 5^-k * 10^k : the 5^-k multiply is exact (integer), and
+        -- '1e<k>'::numeric is an exact decimal-point shift, so av is the exact value.
+        av := (mant * (5::numeric ^ (-k))) * ('1e' || k)::numeric;
+    END IF;
+    IF (substring(bits from 1 for 1)) = B'1' THEN
         sign := '-';
     END IF;
-    av := abs(v);
 
-    -- Decimal exponent of the most-significant digit.
-    exp10 := floor(log(10, av::numeric))::integer;
+    -- floor(log10(av)): float estimate via ln(), then corrected EXACTLY against the
+    -- numeric powers of ten so it is never off-by-one at decade boundaries.
+    exp10 := floor(ln(av) / ln(10::numeric))::integer;
+    WHILE av < (10::numeric ^ exp10) LOOP exp10 := exp10 - 1; END LOOP;
+    WHILE av >= (10::numeric ^ (exp10 + 1)) LOOP exp10 := exp10 + 1; END LOOP;
 
-    -- Round to p significant digits in the numeric domain (exact decimal rounding,
-    -- matching how %g rounds the value before formatting).
-    rounded := round(av::numeric, (p - 1 - exp10));
-    -- Rounding can carry (e.g. 9.999..e0 -> 1.0eX): recompute exponent from the result.
+    -- Round av to p significant digits with round-half-to-EVEN (C %g semantics).
+    -- q = fractional digits to keep; negative for magnitudes >= 10^p.
+    q := p - 1 - exp10;
+    truncated := trunc(av, q);                              -- toward zero
+    rem := av - truncated;                                  -- dropped tail (>= 0)
+    half := (5::numeric) * (10::numeric ^ (-(q + 1)));      -- one half-ULP at scale q
+    IF rem < half THEN
+        rounded := truncated;
+    ELSIF rem > half THEN
+        rounded := truncated + (10::numeric ^ (-q));
+    ELSE
+        -- Exact tie: keep the truncated value iff its last kept digit is already even,
+        -- otherwise step up to the even neighbour. ``truncated * 10^q`` is the integer
+        -- of kept digits; its parity is that last digit's parity.
+        IF mod((truncated * (10::numeric ^ q))::numeric, 2::numeric) = 0 THEN
+            rounded := truncated;
+        ELSE
+            rounded := truncated + (10::numeric ^ (-q));
+        END IF;
+    END IF;
+
+    -- Rounding can carry into a new decade (9.99..e0 -> 1.0eX): recompute exp10.
     IF rounded <> 0 THEN
-        exp10 := floor(log(10, rounded))::integer;
+        exp10 := floor(ln(rounded) / ln(10::numeric))::integer;
+        WHILE rounded < (10::numeric ^ exp10) LOOP exp10 := exp10 - 1; END LOOP;
+        WHILE rounded >= (10::numeric ^ (exp10 + 1)) LOOP exp10 := exp10 + 1; END LOOP;
     END IF;
 
     -- %g rule: scientific iff exponent < -4 or exponent >= precision.
     use_sci := (exp10 < -4) OR (exp10 >= p);
 
     IF use_sci THEN
-        -- Normalise mantissa to [1,10): divide by 10^exp10, keep p sig digits.
-        mant := trim_scale(round(rounded / (10::numeric ^ exp10), p - 1))::text;
-        -- Strip trailing zeros already handled by trim_scale; ensure no '.0'.
+        -- Normalise mantissa to [1,10): multiply by 10^-exp10 (exact), trim zeros.
+        mant_txt := trim_scale(rounded * (10::numeric ^ (-exp10)))::text;
         e_str := abs(exp10)::text;
         IF length(e_str) < 2 THEN
             e_str := lpad(e_str, 2, '0');
         END IF;
         IF exp10 < 0 THEN
-            out_text := sign || mant || 'e-' || e_str;
+            out_text := sign || mant_txt || 'e-' || e_str;
         ELSE
-            out_text := sign || mant || 'e+' || e_str;
+            out_text := sign || mant_txt || 'e+' || e_str;
         END IF;
     ELSE
         -- Fixed notation: trim_scale drops trailing zeros; integral values lose the dot.

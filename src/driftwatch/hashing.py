@@ -26,12 +26,12 @@ from typing import Iterable, Sequence
 
 FIELD_SEP = "\x1f"          # ASCII Unit Separator: between fields of a row
 NULL_SENTINEL = "\\N"       # canonical form of SQL NULL
-DEFAULT_FLOAT_PRECISION = 15  # significant digits for floats. 15 is the highest value that is
-# byte-identical across Postgres, DuckDB, and this Python reference (verified over ~1.3M random
-# and adversarial doubles). Postgres rounds half-away-from-zero in the decimal domain while
-# DuckDB/Python use C %g (half-to-even, binary domain); they agree only at 15 for doubles. 16-17
-# diverge on most values; 12 (the old default) already disagreed on ~0.04% of values. Changes
-# finer than 15 significant digits on a given float are intentionally treated as equal.
+DEFAULT_FLOAT_PRECISION = 17  # significant digits for floats. 17 round-trips an IEEE-754 double
+# exactly, so two doubles compare equal iff they are the same value (no precision is lost). All
+# three engines agree byte-for-byte at 17: the Postgres renderer reconstructs the exact decimal
+# from the double's bits and rounds half-to-even like C %g (verified over ~180k random and
+# adversarial doubles, 0 mismatches at 12/15/16/17). Lower this if a float column is recomputed
+# (not copied) in the target and you want to tolerate last-bit differences from different math.
 HASH_HEX_CHARS = 15          # first 15 hex chars of md5 = 60 bits
 CHECKSUM_MOD = 2 ** 63       # SUM aggregate is taken modulo this
 

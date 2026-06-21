@@ -6,7 +6,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org)
-[![tests](https://img.shields.io/badge/tests-62%20passing-brightgreen.svg)](#development)
+[![ci](https://github.com/catancs/driftwatch/actions/workflows/ci.yml/badge.svg)](https://github.com/catancs/driftwatch/actions/workflows/ci.yml)
 [![status](https://img.shields.io/badge/status-alpha-orange.svg)](#status)
 
 <br/>
@@ -290,10 +290,10 @@ Where it is weaker, so you know when to be careful:
   whole table (measured at about 3% of rows, down from 100%), but computing the split points adds
   a server-side scan per descended range, so wall-clock is roughly twice that of an integer key.
   Still a large saving on data moved.
-- **Float changes finer than 15 significant digits are invisible.** Floats are compared at 15
-  significant digits, the highest value that stays byte-identical across Postgres and DuckDB (a
-  double carries about 15.95 digits, so this is near the limit of what a double can represent).
-  A change smaller than that on a given value reads as equal.
+- **Recomputed float columns can show last-bit differences.** Floats are now compared exactly
+  (17 significant digits, the full precision of a double, verified byte-identical across Postgres
+  and DuckDB). For a copied column that is pure upside. If the target *recomputes* a float with
+  different math, a last-bit difference will show as drift; lower `float_precision` to tolerate it.
 - **Snowflake is unverified.** The connector follows the same hashing contract in SQL, including
   the new pruning and lag methods, but there were no Snowflake credentials to test it live.
 
@@ -357,14 +357,13 @@ idea. The idea is Kleppmann and Riccomini's. The code is ours.
 ## Development
 
 ```bash
-pip install ".[dev,duckdb]" && pytest -q     # 62 passing, 3 skipped (gated live databases)
+pip install ".[dev,duckdb]" && pytest -q     # 73 passing, 5 skipped (gated live databases)
 ```
 
-The suite runs offline against DuckDB. Postgres conformance runs against a service container,
-and Snowflake tests are gated on credentials. The figures come from
-[`docs/render_figures.py`](docs/render_figures.py) (`make figures`). A CI workflow is in
-[`docs/ci-workflow.yml`](docs/ci-workflow.yml); move it to `.github/workflows/ci.yml` to turn it
-on (that path needs a token with the `workflow` scope).
+The suite runs offline against DuckDB; the gated tests need a live Postgres or Snowflake.
+[CI](.github/workflows/ci.yml) runs the full test suite (with a real Postgres service across
+Python 3.9 to 3.12), the DuckDB scenario suites, and the Postgres-to-DuckDB demo on every push.
+The figures come from [`docs/render_figures.py`](docs/render_figures.py) (`make figures`).
 
 ## Status
 

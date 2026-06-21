@@ -523,6 +523,8 @@ def main() -> None:
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=2, default=str)
     print("\nWrote", out_path)
+    if not all_correct:
+        raise SystemExit(1)  # fail CI on a regression
 
 
 if __name__ == "__main__":

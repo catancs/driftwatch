@@ -578,6 +578,149 @@ def test_postgres_split_points_and_watermark():
         pg.close()
 
 
+# --- float-rendering (driftwatch_float_g) conformance --------------------------
+#
+# The Postgres ``driftwatch_float_g`` session helper must reproduce CPython
+# ``format(v, '.<p>g')`` (== C ``printf('%.<p>g')``, which DuckDB uses) BYTE-FOR-BYTE,
+# including at high precision (p=16, p=17). The historical implementation emulated %g
+# with Postgres ``round(numeric, ...)``, which rounds half-AWAY-from-zero on the
+# shortest-round-trip decimal, so it diverged from C %g (half-to-EVEN on the exact
+# binary value) at 16-17 sig digits. The fixed helper reconstructs the exact decimal
+# value from the IEEE-754 bits and rounds half-to-even, so it agrees at every precision.
+#
+# This test feeds a large adversarial sample of doubles - random across magnitudes,
+# constructed exact-half tie cases (where half-even vs half-away actually differ),
+# subnormals, signed zero, and round-trip-17-digit values - through the live helper and
+# asserts EXACT string equality with the Python reference at p in {15, 16, 17}. It skips
+# cleanly when no Postgres is reachable. p=15 is the current default; 16/17 are the
+# precisions the fix unlocks.
+
+_FLOAT_SAMPLE_PRECISIONS = (15, 16, 17)
+
+
+def _float_conformance_sample():
+    """Build the adversarial double sample (deterministic via fixed seeds)."""
+    import random
+    import struct
+
+    rnd = random.Random(0xF10A7)
+    out = []
+
+    def _rand_bits_double():
+        while True:
+            v = struct.unpack("<d", struct.pack("<Q", rnd.getrandbits(64)))[0]
+            if v == v and abs(v) != float("inf"):
+                return v
+
+    # Random full-range doubles (any bit pattern, finite).
+    for _ in range(8000):
+        out.append(_rand_bits_double())
+
+    # Random across magnitudes 1e-30..1e30, signed.
+    for _ in range(4000):
+        mag = (rnd.uniform(1.0, 10.0)) * (10.0 ** rnd.uniform(-30, 30))
+        out.append(mag if rnd.random() < 0.5 else -mag)
+
+    # Constructed exact-half tie cases: n / 2^m is an exact decimal that lands on a .5
+    # boundary, the case where half-to-even and half-away-from-zero diverge.
+    for m in range(1, 56):
+        for _ in range(60):
+            n = rnd.getrandbits(53) | 1  # odd numerator keeps the trailing-5 tie
+            v = n / (2.0 ** m)
+            if v == v and abs(v) != float("inf"):
+                out.append(v)
+                out.append(-v)
+
+    # Decimal-shifted classic ties (k.5 / k.25 / k.125 * 10^e).
+    for _ in range(3000):
+        base = rnd.choice([0.5, 0.25, 0.125, 0.75, 0.375, 2.5, 1.5, 12.5])
+        e = rnd.randint(-200, 200)
+        v = base * (10.0 ** e)
+        if v == v and abs(v) != float("inf") and v != 0:
+            out.append(v)
+            out.append(-v)
+
+    # Hand-picked edge values: powers of ten near the fixed/scientific boundary, signed
+    # zero, subnormals, and values that genuinely need 17 sig digits to round-trip.
+    out.extend([
+        0.0, -0.0, 1.0, -1.0,
+        1e12, 9.999999999e11, 9.99999999999999e15, 1e15, 1e16, 1e17,
+        1e-4, 1e-5, 1.5e-7, 1e20, 1e-20, 1e100, 1e-100,
+        1.7976931348623157e308, 2.2250738585072014e-308,
+        5e-324, -5e-324, 1e-323,  # subnormals
+        0.1, 0.2, 0.3, 1.0 / 3.0, 2.0 / 3.0,
+        1.0000000000000002, 0.9999999999999999,
+        9007199254740993.0, 123456789012345.67,
+    ])
+    return out
+
+
+def test_postgres_float_g_matches_python_reference():
+    """driftwatch_float_g must equal Python ``format(v, '.<p>g')`` for p in {15,16,17}.
+
+    Gated: skips cleanly when no live Postgres is reachable (never fakes a pass).
+    """
+    try:
+        pg = _connect()
+    except _Skip as s:
+        if pytest is not None:
+            pytest.skip(str(s))
+        else:  # pragma: no cover
+            print("SKIP:", s)
+            return
+
+    from psycopg import sql as S
+
+    sample = _float_conformance_sample()
+    raw = pg._conn
+    raw.rollback()
+    prev_ro = raw.read_only
+    raw.read_only = False
+    raw.autocommit = True
+    tmp = "driftwatch_floatg_%s" % uuid.uuid4().hex[:8]
+    ident = S.Identifier(tmp)
+    mismatches = {p: [] for p in _FLOAT_SAMPLE_PRECISIONS}
+    try:
+        with raw.cursor() as cur:
+            cur.execute(
+                S.SQL("CREATE TEMP TABLE {} (idx integer, v double precision)").format(ident)
+            )
+            copy_sql = S.SQL("COPY {} (idx, v) FROM STDIN").format(ident)
+            with cur.copy(copy_sql) as copy:
+                for i, v in enumerate(sample):
+                    copy.write_row([i, v])
+
+            for p in _FLOAT_SAMPLE_PRECISIONS:
+                cur.execute(
+                    S.SQL(
+                        "SELECT idx, pg_temp.driftwatch_float_g(v, %s::integer) "
+                        "FROM {} ORDER BY idx"
+                    ).format(ident),
+                    (p,),
+                )
+                for idx, pg_text in cur.fetchall():
+                    py_text = format(sample[idx], "." + str(p) + "g")
+                    if pg_text != py_text:
+                        mismatches[p].append((sample[idx], pg_text, py_text))
+    finally:
+        try:
+            with raw.cursor() as cur:
+                cur.execute(S.SQL("DROP TABLE IF EXISTS {}").format(ident))
+        except Exception:  # pragma: no cover - best-effort cleanup
+            pass
+        raw.autocommit = False
+        raw.read_only = prev_ro
+        raw.rollback()
+        pg.close()
+
+    for p in _FLOAT_SAMPLE_PRECISIONS:
+        bad = mismatches[p]
+        assert not bad, (
+            "driftwatch_float_g != Python format(v, '.%dg') for %d/%d values; "
+            "first 5: %r" % (p, len(bad), len(sample), bad[:5])
+        )
+
+
 def _drop(pg, schema_table):
     from psycopg import sql as S
 
