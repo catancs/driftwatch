@@ -1,0 +1,96 @@
+{
+  "n_rows": 500000,
+  "expected_drift": {
+    "changed": [
+      50000,
+      250000,
+      450000
+    ],
+    "missing": [
+      125000,
+      166666,
+      375000
+    ],
+    "extra": [
+      500001,
+      500002,
+      500003
+    ],
+    "total": 9
+  },
+  "pairs": [
+    {
+      "pair": "Postgres -> DuckDB",
+      "match_in_sync": true,
+      "match_rows_compared": 0,
+      "match_segments": 1,
+      "match_engine_s": 0.592,
+      "drift_correct": true,
+      "drift_in_sync": false,
+      "drift_found_total": 9,
+      "drift_found_by_kind": {
+        "missing": 3,
+        "extra": 3,
+        "changed": 3
+      },
+      "drift_rows_compared": 13676,
+      "drift_segments": 129,
+      "drift_engine_s": 1.941
+    },
+    {
+      "pair": "DuckDB -> Postgres",
+      "match_in_sync": true,
+      "match_rows_compared": 0,
+      "match_segments": 1,
+      "match_engine_s": 0.579,
+      "drift_correct": true,
+      "drift_in_sync": false,
+      "drift_found_total": 9,
+      "drift_found_by_kind": {
+        "missing": 3,
+        "extra": 3,
+        "changed": 3
+      },
+      "drift_rows_compared": 13676,
+      "drift_segments": 129,
+      "drift_engine_s": 2.013
+    },
+    {
+      "pair": "Postgres -> Postgres",
+      "match_in_sync": true,
+      "match_rows_compared": 0,
+      "match_segments": 1,
+      "match_engine_s": 1.042,
+      "drift_correct": true,
+      "drift_in_sync": false,
+      "drift_found_total": 9,
+      "drift_found_by_kind": {
+        "missing": 3,
+        "extra": 3,
+        "changed": 3
+      },
+      "drift_rows_compared": 13676,
+      "drift_segments": 129,
+      "drift_engine_s": 2.696
+    },
+    {
+      "pair": "DuckDB -> DuckDB",
+      "match_in_sync": true,
+      "match_rows_compared": 0,
+      "match_segments": 1,
+      "match_engine_s": 0.144,
+      "drift_correct": true,
+      "drift_in_sync": false,
+      "drift_found_total": 9,
+      "drift_found_by_kind": {
+        "missing": 3,
+        "extra": 3,
+        "changed": 3
+      },
+      "drift_rows_compared": 13676,
+      "drift_segments": 129,
+      "drift_engine_s": 1.131
+    }
+  ],
+  "snowflake": "UNVERIFIED in this run: SnowflakeConnector exists in src/ but requires a live Snowflake account AND the snowflake-connector-python package. Neither is present (module not importable, no credentials). NOT exercised, NOT faked."
+}

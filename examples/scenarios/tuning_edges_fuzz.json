@@ -1,0 +1,1215 @@
+{
+  "tuning": {
+    "n_rows": 500000,
+    "drift_rows": 50,
+    "sweeps": [
+      {
+        "sweep": "leaf_size",
+        "leaf_size": 500,
+        "segment_fanout": 16,
+        "rows_compared": 3786,
+        "segments_scanned": 769,
+        "engine_s": 2.954,
+        "found": 50,
+        "drift_expected": 50,
+        "correct": true
+      },
+      {
+        "sweep": "leaf_size",
+        "leaf_size": 2000,
+        "segment_fanout": 16,
+        "rows_compared": 60549,
+        "segments_scanned": 273,
+        "engine_s": 1.825,
+        "found": 50,
+        "drift_expected": 50,
+        "correct": true
+      },
+      {
+        "sweep": "leaf_size",
+        "leaf_size": 5000,
+        "segment_fanout": 16,
+        "rows_compared": 60549,
+        "segments_scanned": 273,
+        "engine_s": 2.04,
+        "found": 50,
+        "drift_expected": 50,
+        "correct": true
+      },
+      {
+        "sweep": "leaf_size",
+        "leaf_size": 20000,
+        "segment_fanout": 16,
+        "rows_compared": 60549,
+        "segments_scanned": 273,
+        "engine_s": 2.009,
+        "found": 50,
+        "drift_expected": 50,
+        "correct": true
+      },
+      {
+        "sweep": "leaf_size",
+        "leaf_size": 100000,
+        "segment_fanout": 16,
+        "rows_compared": 500015,
+        "segments_scanned": 17,
+        "engine_s": 1.548,
+        "found": 50,
+        "drift_expected": 50,
+        "correct": true
+      },
+      {
+        "sweep": "segment_fanout",
+        "leaf_size": 5000,
+        "segment_fanout": 4,
+        "rows_compared": 60549,
+        "segments_scanned": 209,
+        "engine_s": 2.371,
+        "found": 50,
+        "drift_expected": 50,
+        "correct": true
+      },
+      {
+        "sweep": "segment_fanout",
+        "leaf_size": 5000,
+        "segment_fanout": 16,
+        "rows_compared": 60549,
+        "segments_scanned": 273,
+        "engine_s": 2.001,
+        "found": 50,
+        "drift_expected": 50,
+        "correct": true
+      },
+      {
+        "sweep": "segment_fanout",
+        "leaf_size": 5000,
+        "segment_fanout": 64,
+        "rows_compared": 3798,
+        "segments_scanned": 2049,
+        "engine_s": 5.889,
+        "found": 50,
+        "drift_expected": 50,
+        "correct": true
+      }
+    ]
+  },
+  "edges": {
+    "cases": [
+      {
+        "case": "empty source + empty target (in_sync)",
+        "expected": [],
+        "actual": [],
+        "in_sync": true,
+        "ok": true
+      },
+      {
+        "case": "source rows, target empty (all missing)",
+        "expected": [
+          [
+            1,
+            "missing"
+          ],
+          [
+            2,
+            "missing"
+          ],
+          [
+            3,
+            "missing"
+          ],
+          [
+            4,
+            "missing"
+          ],
+          [
+            5,
+            "missing"
+          ]
+        ],
+        "actual": [
+          [
+            1,
+            "missing"
+          ],
+          [
+            2,
+            "missing"
+          ],
+          [
+            3,
+            "missing"
+          ],
+          [
+            4,
+            "missing"
+          ],
+          [
+            5,
+            "missing"
+          ]
+        ],
+        "in_sync": false,
+        "ok": true
+      },
+      {
+        "case": "target rows, source empty (all extra)",
+        "expected": [
+          [
+            1,
+            "extra"
+          ],
+          [
+            2,
+            "extra"
+          ],
+          [
+            3,
+            "extra"
+          ],
+          [
+            4,
+            "extra"
+          ],
+          [
+            5,
+            "extra"
+          ]
+        ],
+        "actual": [
+          [
+            1,
+            "extra"
+          ],
+          [
+            2,
+            "extra"
+          ],
+          [
+            3,
+            "extra"
+          ],
+          [
+            4,
+            "extra"
+          ],
+          [
+            5,
+            "extra"
+          ]
+        ],
+        "in_sync": false,
+        "ok": true
+      },
+      {
+        "case": "single row identical (in_sync)",
+        "expected": [],
+        "actual": [],
+        "in_sync": true,
+        "ok": true
+      },
+      {
+        "case": "single row changed",
+        "expected": [
+          [
+            1,
+            "changed"
+          ]
+        ],
+        "actual": [
+          [
+            1,
+            "changed"
+          ]
+        ],
+        "in_sync": false,
+        "ok": true
+      },
+      {
+        "case": "NULL on one side of a compared column (changed)",
+        "expected": [
+          [
+            1,
+            "changed"
+          ]
+        ],
+        "actual": [
+          [
+            1,
+            "changed"
+          ]
+        ],
+        "in_sync": false,
+        "ok": true
+      },
+      {
+        "case": "value-swap between two keys (both changed, checksum not fooled)",
+        "expected": [
+          [
+            1,
+            "changed"
+          ],
+          [
+            2,
+            "changed"
+          ]
+        ],
+        "actual": [
+          [
+            1,
+            "changed"
+          ],
+          [
+            2,
+            "changed"
+          ]
+        ],
+        "in_sync": false,
+        "ok": true
+      },
+      {
+        "case": "compare_columns='*' -> column intersection (extra col excluded, in_sync)",
+        "expected": [],
+        "actual": [],
+        "in_sync": true,
+        "ok": true,
+        "note": "source-only column 'only_src' must be excluded from '*'"
+      },
+      {
+        "case": "compare_columns='*' intersection still detects shared-col change",
+        "expected": [
+          [
+            1,
+            "changed"
+          ]
+        ],
+        "actual": [
+          [
+            1,
+            "changed"
+          ]
+        ],
+        "in_sync": false,
+        "ok": true
+      },
+      {
+        "case": "[duckdb] value-swap between two keys (both changed)",
+        "expected": [
+          [
+            1,
+            "changed"
+          ],
+          [
+            2,
+            "changed"
+          ]
+        ],
+        "actual": [
+          [
+            1,
+            "changed"
+          ],
+          [
+            2,
+            "changed"
+          ]
+        ],
+        "in_sync": false,
+        "ok": true
+      },
+      {
+        "case": "[duckdb] NULL on one side of compared column (changed)",
+        "expected": [
+          [
+            1,
+            "changed"
+          ]
+        ],
+        "actual": [
+          [
+            1,
+            "changed"
+          ]
+        ],
+        "in_sync": false,
+        "ok": true
+      },
+      {
+        "case": "[duckdb] compare_columns='*' intersection (extra col excluded)",
+        "expected": [],
+        "actual": [],
+        "in_sync": true,
+        "ok": true
+      }
+    ],
+    "passed": 12,
+    "total": 12,
+    "duckdb_crosscheck_ok": true
+  },
+  "fuzz": {
+    "trials": 50,
+    "passed": 50,
+    "results": [
+      {
+        "seed": 1000000,
+        "n": 6737,
+        "cols": [
+          "a",
+          "b"
+        ],
+        "leaf_size": 5000,
+        "fanout": 64,
+        "n_changed": 0,
+        "n_missing": 104,
+        "n_extra": 19,
+        "truth_total": 123,
+        "found_total": 123,
+        "ok": true
+      },
+      {
+        "seed": 1000001,
+        "n": 13013,
+        "cols": [
+          "a",
+          "b",
+          "c"
+        ],
+        "leaf_size": 5000,
+        "fanout": 4,
+        "n_changed": 1,
+        "n_missing": 40,
+        "n_extra": 257,
+        "truth_total": 298,
+        "found_total": 298,
+        "ok": true
+      },
+      {
+        "seed": 1000002,
+        "n": 3307,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "leaf_size": 2000,
+        "fanout": 2,
+        "n_changed": 43,
+        "n_missing": 59,
+        "n_extra": 37,
+        "truth_total": 139,
+        "found_total": 139,
+        "ok": true
+      },
+      {
+        "seed": 1000003,
+        "n": 34808,
+        "cols": [
+          "a",
+          "b",
+          "c"
+        ],
+        "leaf_size": 20000,
+        "fanout": 64,
+        "n_changed": 84,
+        "n_missing": 288,
+        "n_extra": 396,
+        "truth_total": 768,
+        "found_total": 768,
+        "ok": true
+      },
+      {
+        "seed": 1000004,
+        "n": 33604,
+        "cols": [
+          "a",
+          "b"
+        ],
+        "leaf_size": 2000,
+        "fanout": 2,
+        "n_changed": 192,
+        "n_missing": 450,
+        "n_extra": 228,
+        "truth_total": 870,
+        "found_total": 870,
+        "ok": true
+      },
+      {
+        "seed": 1000005,
+        "n": 19005,
+        "cols": [
+          "a"
+        ],
+        "leaf_size": 20000,
+        "fanout": 16,
+        "n_changed": 192,
+        "n_missing": 10,
+        "n_extra": 336,
+        "truth_total": 538,
+        "found_total": 538,
+        "ok": true
+      },
+      {
+        "seed": 1000006,
+        "n": 23515,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "leaf_size": 20000,
+        "fanout": 2,
+        "n_changed": 356,
+        "n_missing": 298,
+        "n_extra": 117,
+        "truth_total": 771,
+        "found_total": 771,
+        "ok": true
+      },
+      {
+        "seed": 1000007,
+        "n": 18629,
+        "cols": [
+          "a",
+          "b"
+        ],
+        "leaf_size": 2000,
+        "fanout": 16,
+        "n_changed": 172,
+        "n_missing": 283,
+        "n_extra": 63,
+        "truth_total": 518,
+        "found_total": 518,
+        "ok": true
+      },
+      {
+        "seed": 1000008,
+        "n": 20292,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "leaf_size": 5000,
+        "fanout": 8,
+        "n_changed": 38,
+        "n_missing": 369,
+        "n_extra": 338,
+        "truth_total": 745,
+        "found_total": 745,
+        "ok": true
+      },
+      {
+        "seed": 1000009,
+        "n": 34925,
+        "cols": [
+          "a",
+          "b"
+        ],
+        "leaf_size": 20000,
+        "fanout": 64,
+        "n_changed": 136,
+        "n_missing": 154,
+        "n_extra": 117,
+        "truth_total": 407,
+        "found_total": 407,
+        "ok": true
+      },
+      {
+        "seed": 1000010,
+        "n": 17081,
+        "cols": [
+          "a",
+          "b",
+          "c"
+        ],
+        "leaf_size": 20000,
+        "fanout": 16,
+        "n_changed": 294,
+        "n_missing": 69,
+        "n_extra": 329,
+        "truth_total": 692,
+        "found_total": 692,
+        "ok": true
+      },
+      {
+        "seed": 1000011,
+        "n": 35860,
+        "cols": [
+          "a",
+          "b",
+          "c"
+        ],
+        "leaf_size": 5000,
+        "fanout": 4,
+        "n_changed": 32,
+        "n_missing": 317,
+        "n_extra": 93,
+        "truth_total": 442,
+        "found_total": 442,
+        "ok": true
+      },
+      {
+        "seed": 1000012,
+        "n": 44763,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "leaf_size": 20000,
+        "fanout": 4,
+        "n_changed": 380,
+        "n_missing": 735,
+        "n_extra": 273,
+        "truth_total": 1388,
+        "found_total": 1388,
+        "ok": true
+      },
+      {
+        "seed": 1000013,
+        "n": 41696,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "leaf_size": 2000,
+        "fanout": 16,
+        "n_changed": 279,
+        "n_missing": 525,
+        "n_extra": 241,
+        "truth_total": 1045,
+        "found_total": 1045,
+        "ok": true
+      },
+      {
+        "seed": 1000014,
+        "n": 38066,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "leaf_size": 2000,
+        "fanout": 16,
+        "n_changed": 280,
+        "n_missing": 464,
+        "n_extra": 609,
+        "truth_total": 1353,
+        "found_total": 1353,
+        "ok": true
+      },
+      {
+        "seed": 1000015,
+        "n": 49969,
+        "cols": [
+          "a",
+          "b"
+        ],
+        "leaf_size": 5000,
+        "fanout": 64,
+        "n_changed": 261,
+        "n_missing": 263,
+        "n_extra": 7,
+        "truth_total": 531,
+        "found_total": 531,
+        "ok": true
+      },
+      {
+        "seed": 1000016,
+        "n": 21980,
+        "cols": [
+          "a"
+        ],
+        "leaf_size": 20000,
+        "fanout": 4,
+        "n_changed": 38,
+        "n_missing": 154,
+        "n_extra": 341,
+        "truth_total": 533,
+        "found_total": 533,
+        "ok": true
+      },
+      {
+        "seed": 1000017,
+        "n": 35155,
+        "cols": [
+          "a",
+          "b",
+          "c"
+        ],
+        "leaf_size": 5000,
+        "fanout": 64,
+        "n_changed": 95,
+        "n_missing": 142,
+        "n_extra": 669,
+        "truth_total": 906,
+        "found_total": 906,
+        "ok": true
+      },
+      {
+        "seed": 1000018,
+        "n": 23700,
+        "cols": [
+          "a",
+          "b",
+          "c"
+        ],
+        "leaf_size": 20000,
+        "fanout": 8,
+        "n_changed": 232,
+        "n_missing": 317,
+        "n_extra": 321,
+        "truth_total": 870,
+        "found_total": 870,
+        "ok": true
+      },
+      {
+        "seed": 1000019,
+        "n": 10859,
+        "cols": [
+          "a",
+          "b",
+          "c"
+        ],
+        "leaf_size": 5000,
+        "fanout": 2,
+        "n_changed": 40,
+        "n_missing": 212,
+        "n_extra": 130,
+        "truth_total": 382,
+        "found_total": 382,
+        "ok": true
+      },
+      {
+        "seed": 1000020,
+        "n": 30743,
+        "cols": [
+          "a",
+          "b",
+          "c"
+        ],
+        "leaf_size": 2000,
+        "fanout": 16,
+        "n_changed": 530,
+        "n_missing": 495,
+        "n_extra": 165,
+        "truth_total": 1190,
+        "found_total": 1190,
+        "ok": true
+      },
+      {
+        "seed": 1000021,
+        "n": 39637,
+        "cols": [
+          "a",
+          "b",
+          "c"
+        ],
+        "leaf_size": 20000,
+        "fanout": 8,
+        "n_changed": 522,
+        "n_missing": 735,
+        "n_extra": 596,
+        "truth_total": 1853,
+        "found_total": 1853,
+        "ok": true
+      },
+      {
+        "seed": 1000022,
+        "n": 33932,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "leaf_size": 5000,
+        "fanout": 2,
+        "n_changed": 26,
+        "n_missing": 235,
+        "n_extra": 482,
+        "truth_total": 743,
+        "found_total": 743,
+        "ok": true
+      },
+      {
+        "seed": 1000023,
+        "n": 29508,
+        "cols": [
+          "a",
+          "b"
+        ],
+        "leaf_size": 20000,
+        "fanout": 64,
+        "n_changed": 165,
+        "n_missing": 156,
+        "n_extra": 171,
+        "truth_total": 492,
+        "found_total": 492,
+        "ok": true
+      },
+      {
+        "seed": 1000024,
+        "n": 39025,
+        "cols": [
+          "a",
+          "b"
+        ],
+        "leaf_size": 5000,
+        "fanout": 2,
+        "n_changed": 409,
+        "n_missing": 36,
+        "n_extra": 351,
+        "truth_total": 796,
+        "found_total": 796,
+        "ok": true
+      },
+      {
+        "seed": 1000025,
+        "n": 38129,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "leaf_size": 20000,
+        "fanout": 64,
+        "n_changed": 665,
+        "n_missing": 697,
+        "n_extra": 67,
+        "truth_total": 1429,
+        "found_total": 1429,
+        "ok": true
+      },
+      {
+        "seed": 1000026,
+        "n": 38907,
+        "cols": [
+          "a",
+          "b",
+          "c"
+        ],
+        "leaf_size": 5000,
+        "fanout": 64,
+        "n_changed": 761,
+        "n_missing": 231,
+        "n_extra": 669,
+        "truth_total": 1661,
+        "found_total": 1661,
+        "ok": true
+      },
+      {
+        "seed": 1000027,
+        "n": 22844,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "leaf_size": 5000,
+        "fanout": 4,
+        "n_changed": 222,
+        "n_missing": 450,
+        "n_extra": 353,
+        "truth_total": 1025,
+        "found_total": 1025,
+        "ok": true
+      },
+      {
+        "seed": 1000028,
+        "n": 13211,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "leaf_size": 20000,
+        "fanout": 16,
+        "n_changed": 138,
+        "n_missing": 261,
+        "n_extra": 7,
+        "truth_total": 406,
+        "found_total": 406,
+        "ok": true
+      },
+      {
+        "seed": 1000029,
+        "n": 6784,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "leaf_size": 5000,
+        "fanout": 4,
+        "n_changed": 13,
+        "n_missing": 74,
+        "n_extra": 122,
+        "truth_total": 209,
+        "found_total": 209,
+        "ok": true
+      },
+      {
+        "seed": 1000030,
+        "n": 37313,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "leaf_size": 2000,
+        "fanout": 64,
+        "n_changed": 730,
+        "n_missing": 315,
+        "n_extra": 665,
+        "truth_total": 1710,
+        "found_total": 1710,
+        "ok": true
+      },
+      {
+        "seed": 1000031,
+        "n": 45715,
+        "cols": [
+          "a"
+        ],
+        "leaf_size": 20000,
+        "fanout": 16,
+        "n_changed": 138,
+        "n_missing": 807,
+        "n_extra": 320,
+        "truth_total": 1265,
+        "found_total": 1265,
+        "ok": true
+      },
+      {
+        "seed": 1000032,
+        "n": 32193,
+        "cols": [
+          "a"
+        ],
+        "leaf_size": 20000,
+        "fanout": 64,
+        "n_changed": 129,
+        "n_missing": 157,
+        "n_extra": 111,
+        "truth_total": 397,
+        "found_total": 397,
+        "ok": true
+      },
+      {
+        "seed": 1000033,
+        "n": 30467,
+        "cols": [
+          "a"
+        ],
+        "leaf_size": 5000,
+        "fanout": 16,
+        "n_changed": 248,
+        "n_missing": 297,
+        "n_extra": 552,
+        "truth_total": 1097,
+        "found_total": 1097,
+        "ok": true
+      },
+      {
+        "seed": 1000034,
+        "n": 38454,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "leaf_size": 5000,
+        "fanout": 8,
+        "n_changed": 411,
+        "n_missing": 322,
+        "n_extra": 234,
+        "truth_total": 967,
+        "found_total": 967,
+        "ok": true
+      },
+      {
+        "seed": 1000035,
+        "n": 26217,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "leaf_size": 5000,
+        "fanout": 4,
+        "n_changed": 66,
+        "n_missing": 227,
+        "n_extra": 400,
+        "truth_total": 693,
+        "found_total": 693,
+        "ok": true
+      },
+      {
+        "seed": 1000036,
+        "n": 23427,
+        "cols": [
+          "a"
+        ],
+        "leaf_size": 5000,
+        "fanout": 64,
+        "n_changed": 373,
+        "n_missing": 450,
+        "n_extra": 134,
+        "truth_total": 957,
+        "found_total": 957,
+        "ok": true
+      },
+      {
+        "seed": 1000037,
+        "n": 19198,
+        "cols": [
+          "a",
+          "b"
+        ],
+        "leaf_size": 5000,
+        "fanout": 2,
+        "n_changed": 214,
+        "n_missing": 85,
+        "n_extra": 82,
+        "truth_total": 381,
+        "found_total": 381,
+        "ok": true
+      },
+      {
+        "seed": 1000038,
+        "n": 22862,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "leaf_size": 5000,
+        "fanout": 2,
+        "n_changed": 424,
+        "n_missing": 71,
+        "n_extra": 114,
+        "truth_total": 609,
+        "found_total": 609,
+        "ok": true
+      },
+      {
+        "seed": 1000039,
+        "n": 34105,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "leaf_size": 20000,
+        "fanout": 64,
+        "n_changed": 249,
+        "n_missing": 329,
+        "n_extra": 272,
+        "truth_total": 850,
+        "found_total": 850,
+        "ok": true
+      },
+      {
+        "seed": 1000040,
+        "n": 3364,
+        "cols": [
+          "a",
+          "b",
+          "c"
+        ],
+        "leaf_size": 20000,
+        "fanout": 8,
+        "n_changed": 66,
+        "n_missing": 46,
+        "n_extra": 53,
+        "truth_total": 165,
+        "found_total": 165,
+        "ok": true
+      },
+      {
+        "seed": 1000041,
+        "n": 34346,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "leaf_size": 5000,
+        "fanout": 2,
+        "n_changed": 349,
+        "n_missing": 344,
+        "n_extra": 553,
+        "truth_total": 1246,
+        "found_total": 1246,
+        "ok": true
+      },
+      {
+        "seed": 1000042,
+        "n": 21086,
+        "cols": [
+          "a"
+        ],
+        "leaf_size": 5000,
+        "fanout": 64,
+        "n_changed": 294,
+        "n_missing": 259,
+        "n_extra": 385,
+        "truth_total": 938,
+        "found_total": 938,
+        "ok": true
+      },
+      {
+        "seed": 1000043,
+        "n": 20681,
+        "cols": [
+          "a",
+          "b",
+          "c"
+        ],
+        "leaf_size": 2000,
+        "fanout": 16,
+        "n_changed": 411,
+        "n_missing": 390,
+        "n_extra": 140,
+        "truth_total": 941,
+        "found_total": 941,
+        "ok": true
+      },
+      {
+        "seed": 1000044,
+        "n": 17748,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "leaf_size": 5000,
+        "fanout": 2,
+        "n_changed": 11,
+        "n_missing": 343,
+        "n_extra": 258,
+        "truth_total": 612,
+        "found_total": 612,
+        "ok": true
+      },
+      {
+        "seed": 1000045,
+        "n": 41185,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "leaf_size": 5000,
+        "fanout": 8,
+        "n_changed": 509,
+        "n_missing": 349,
+        "n_extra": 396,
+        "truth_total": 1254,
+        "found_total": 1254,
+        "ok": true
+      },
+      {
+        "seed": 1000046,
+        "n": 21474,
+        "cols": [
+          "a",
+          "b",
+          "c"
+        ],
+        "leaf_size": 2000,
+        "fanout": 2,
+        "n_changed": 73,
+        "n_missing": 178,
+        "n_extra": 92,
+        "truth_total": 343,
+        "found_total": 343,
+        "ok": true
+      },
+      {
+        "seed": 1000047,
+        "n": 48126,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ],
+        "leaf_size": 5000,
+        "fanout": 4,
+        "n_changed": 697,
+        "n_missing": 783,
+        "n_extra": 53,
+        "truth_total": 1533,
+        "found_total": 1533,
+        "ok": true
+      },
+      {
+        "seed": 1000048,
+        "n": 19688,
+        "cols": [
+          "a",
+          "b",
+          "c"
+        ],
+        "leaf_size": 20000,
+        "fanout": 8,
+        "n_changed": 105,
+        "n_missing": 187,
+        "n_extra": 291,
+        "truth_total": 583,
+        "found_total": 583,
+        "ok": true
+      },
+      {
+        "seed": 1000049,
+        "n": 25927,
+        "cols": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "leaf_size": 20000,
+        "fanout": 8,
+        "n_changed": 241,
+        "n_missing": 466,
+        "n_extra": 54,
+        "truth_total": 761,
+        "found_total": 761,
+        "ok": true
+      }
+    ],
+    "failures": []
+  }
+}

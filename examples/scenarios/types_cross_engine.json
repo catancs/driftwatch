@@ -1,0 +1,133 @@
+{
+  "scenario": "types_cross_engine",
+  "n_rows": 500000,
+  "leaf_size": 5000,
+  "recheck_rounds": 0,
+  "pg_port": 55440,
+  "columns": [
+    "id",
+    "big",
+    "name",
+    "note",
+    "price",
+    "qty",
+    "ratio",
+    "active",
+    "created_d",
+    "created_ts",
+    "payload"
+  ],
+  "tricky_floats": [
+    0.1,
+    0.3333333333333333,
+    1e-07,
+    1000000000000.0,
+    -2.5,
+    -0.0,
+    123456.789,
+    999999999900.0
+  ],
+  "table_rows": 500000,
+  "load_seconds": 1.04,
+  "test1_matching": {
+    "in_sync": true,
+    "rows_compared": 0,
+    "segments_scanned": 1,
+    "drift_rows": 0,
+    "engine_seconds": 8.273
+  },
+  "float_verdict": {
+    "column": "ratio",
+    "tricky_values": [
+      0.1,
+      0.3333333333333333,
+      1e-07,
+      1000000000000.0,
+      -2.5,
+      -0.0,
+      123456.789,
+      999999999900.0
+    ],
+    "in_sync": true,
+    "drift_rows": 0,
+    "exact_match": true,
+    "precision_masking_demo": {
+      "value": 999999999900.0,
+      "value_plus_0_5": 999999999900.5,
+      "canonical_value": "999999999900",
+      "canonical_value_plus_0_5": "999999999900",
+      "delta_visible_at_12_sig_digits": false,
+      "note": "A 0.5 change to a ~1e12 float is below 12 significant digits, so both engines emit the same %g text and the row hashes match \u2014 this is the documented float sharp edge, not a cross-engine bug."
+    }
+  },
+  "test2_per_type": {
+    "results": [
+      {
+        "type": "numeric",
+        "id": 1000,
+        "reported_kind": "changed",
+        "caught": true
+      },
+      {
+        "type": "double",
+        "id": 2000,
+        "reported_kind": "changed",
+        "caught": true
+      },
+      {
+        "type": "timestamp",
+        "id": 3000,
+        "reported_kind": "changed",
+        "caught": true
+      },
+      {
+        "type": "bool",
+        "id": 4000,
+        "reported_kind": "changed",
+        "caught": true
+      },
+      {
+        "type": "null_to_value",
+        "id": 5001,
+        "reported_kind": "changed",
+        "caught": true
+      },
+      {
+        "type": "value_to_null",
+        "id": 6005,
+        "reported_kind": "changed",
+        "caught": true
+      },
+      {
+        "type": "text",
+        "id": 7000,
+        "reported_kind": "changed",
+        "caught": true
+      },
+      {
+        "type": "bytea",
+        "id": 8000,
+        "reported_kind": "changed",
+        "caught": true
+      }
+    ],
+    "all_caught": true,
+    "drift_total": 8,
+    "unexpected_drift_ids": [],
+    "unexpected_count": 0
+  },
+  "test3_column_selection": {
+    "float_drift_ids": [
+      40000,
+      80000,
+      120000
+    ],
+    "with_float_in_sync": false,
+    "with_float_drift_rows": 3,
+    "exclude_float_in_sync": true,
+    "exclude_float_drift_rows": 0,
+    "subset_without_float_in_sync": true,
+    "subset_without_float_drift_rows": 0,
+    "proves_selection": true
+  }
+}

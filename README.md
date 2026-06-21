@@ -261,6 +261,45 @@ The wall-clock grows with the table because each database hashes its own rows to
 checksums. That work happens inside the database and moves no data out. On a cloud warehouse,
 where you pay for data scanned and moved, driftwatch moves almost none of it.
 
+## Tested scenarios
+
+Beyond the headline benchmark, driftwatch is checked across a matrix of conditions, run against
+real Postgres and DuckDB. Each suite is a committed script under
+[`examples/scenarios/`](examples/scenarios/) with its results in a `.json` next to it.
+
+| Suite | What it checks | Result |
+|---|---|---|
+| Drift density | 0 to 100% drift, scattered vs contiguous, 1M rows | correct at every level |
+| Key types | integer, integer-with-gaps, composite, string / UUID | correct for all; pruning only on single integer keys |
+| Cross-engine types | wide table, 11 column types, Postgres vs DuckDB, 500k | in sync across every type; each per-type drift caught |
+| Lag and recheck | inserts, updates, drops under churn, grace + recheck | inserts: 0 false positives at every grace window |
+| Engine pairs | PG to DuckDB, DuckDB to PG, PG to PG, DuckDB to DuckDB | all correct, no false drift, symmetric |
+| Tuning, edges, fuzz | leaf_size / fanout sweep, 12 edge cases, 50 random trials | 12 / 12 edges, 50 / 50 fuzz exact match |
+
+Reproduce any of them, for example `PYTHONPATH=src python3 examples/scenarios/density.py`.
+
+## Known limitations
+
+Where it is weaker, so you know when to be careful:
+
+- **Pruning only helps single-column integer keys.** Composite keys and string or UUID keys are
+  still correct, but driftwatch reads the whole table for them (measured at about 37 times more
+  rows than an integer key) because range-splitting falls back to a full scan. Percentile-based
+  splitting for other key types is future work.
+- **Scattered drift costs more than its row count.** Each drifted row pulls in its whole key
+  range, so drift spread thinly across the table (roughly 10% or more) degrades to a full scan.
+  Contiguous drift, like a backfill gap, stays cheap.
+- **Float changes below the precision cutoff are invisible.** Floats are compared at 12
+  significant digits by default, so a tiny change to a very large float (for example +0.5 on a
+  value near 1e12) reads as equal. Raise `float_precision` if you need finer comparison.
+- **Lag handling is built for inserts.** A brand-new row that has not synced yet is correctly
+  ignored inside the grace window (0 false positives in testing). An in-place update that has not
+  synced can still be reported inside the window, and a recently-changed row that is then dropped
+  is only caught once it ages past the grace window. For update-heavy pipelines, use a larger
+  grace window.
+- **Snowflake is unverified.** The connector follows the same hashing contract in SQL, but there
+  were no Snowflake credentials available to test it against a live warehouse.
+
 ## What it catches
 
 | Problem | What you see |

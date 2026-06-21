@@ -1,0 +1,177 @@
+{
+  "now": "2026-06-21T12:00:00",
+  "sync_time": "2026-06-21T11:50:00",
+  "rows": 500000,
+  "all_correct": false,
+  "false_positive_counts_scenario1": {
+    "0": 0,
+    "1m": 0,
+    "15m": 0,
+    "1h": 0
+  },
+  "results": [
+    {
+      "scenario": "1-inserts",
+      "grace": "15m",
+      "rounds": 0,
+      "reported": 0,
+      "by_kind": {
+        "missing": 0,
+        "extra": 0,
+        "changed": 0
+      },
+      "in_sync": true,
+      "expected": "in_sync (0)",
+      "correct": true
+    },
+    {
+      "scenario": "1-inserts",
+      "grace": "0",
+      "rounds": 0,
+      "reported": 5000,
+      "by_kind": {
+        "missing": 5000,
+        "extra": 0,
+        "changed": 0
+      },
+      "in_sync": false,
+      "expected": "5000 missing",
+      "correct": true
+    },
+    {
+      "scenario": "2-updates",
+      "grace": "15m",
+      "rounds": 0,
+      "reported": 4663,
+      "by_kind": {
+        "missing": 0,
+        "extra": 4663,
+        "changed": 0
+      },
+      "in_sync": false,
+      "expected": "ignored (0)",
+      "correct": false
+    },
+    {
+      "scenario": "2-updates",
+      "grace": "0",
+      "rounds": 0,
+      "reported": 5000,
+      "by_kind": {
+        "missing": 0,
+        "extra": 0,
+        "changed": 5000
+      },
+      "in_sync": false,
+      "expected": "5000 changed",
+      "correct": true
+    },
+    {
+      "scenario": "3-genuine-drop",
+      "grace": "15m",
+      "rounds": 0,
+      "reported": 48,
+      "by_kind": {
+        "missing": 48,
+        "extra": 0,
+        "changed": 0
+      },
+      "in_sync": false,
+      "expected": "50 missing",
+      "correct": false
+    },
+    {
+      "scenario": "4-recheck-rounds=1",
+      "grace": "0",
+      "rounds": 1,
+      "reported": 1,
+      "by_kind": {
+        "missing": 0,
+        "extra": 0,
+        "changed": 1
+      },
+      "candidates_before_recheck": 2,
+      "survivors": [
+        2
+      ],
+      "expected": "2 candidates -> 1 survives (id=2)",
+      "correct": true,
+      "method": "MemoryConnector + recheck-fetch wrapper (DuckDB-file mid-run mutation not expressible)"
+    },
+    {
+      "scenario": "4-recheck-rounds=0",
+      "grace": "0",
+      "rounds": 0,
+      "reported": 2,
+      "by_kind": {
+        "missing": 0,
+        "extra": 0,
+        "changed": 2
+      },
+      "candidates_before_recheck": 2,
+      "survivors": [
+        1,
+        2
+      ],
+      "expected": "no recheck -> both survive (id=1,2)",
+      "correct": true,
+      "method": "MemoryConnector control (rounds=0)"
+    },
+    {
+      "scenario": "5-grace-sweep",
+      "grace": "0",
+      "rounds": 0,
+      "reported": 0,
+      "by_kind": {
+        "missing": 0,
+        "extra": 0,
+        "changed": 0
+      },
+      "in_sync": true,
+      "expected": "5000 missing",
+      "correct": false
+    },
+    {
+      "scenario": "5-grace-sweep",
+      "grace": "1m",
+      "rounds": 0,
+      "reported": 0,
+      "by_kind": {
+        "missing": 0,
+        "extra": 0,
+        "changed": 0
+      },
+      "in_sync": true,
+      "expected": "in_sync (0)",
+      "correct": true
+    },
+    {
+      "scenario": "5-grace-sweep",
+      "grace": "15m",
+      "rounds": 0,
+      "reported": 0,
+      "by_kind": {
+        "missing": 0,
+        "extra": 0,
+        "changed": 0
+      },
+      "in_sync": true,
+      "expected": "in_sync (0)",
+      "correct": true
+    },
+    {
+      "scenario": "5-grace-sweep",
+      "grace": "1h",
+      "rounds": 0,
+      "reported": 0,
+      "by_kind": {
+        "missing": 0,
+        "extra": 0,
+        "changed": 0
+      },
+      "in_sync": true,
+      "expected": "in_sync (0)",
+      "correct": true
+    }
+  ]
+}

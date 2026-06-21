@@ -1,0 +1,89 @@
+{
+  "n_rows": 1000000,
+  "results": [
+    {
+      "scenario": "0 drift (identical)",
+      "drift_rows": 0,
+      "rows_compared": 0,
+      "pct_of_table": 0.0,
+      "segments_scanned": 1,
+      "engine_s": 0.179,
+      "in_sync": true,
+      "found": 0,
+      "verify_mode": "exact",
+      "correct": true
+    },
+    {
+      "scenario": "1 changed row",
+      "drift_rows": 1,
+      "rows_compared": 3907,
+      "pct_of_table": 0.3907,
+      "segments_scanned": 33,
+      "engine_s": 1.177,
+      "in_sync": false,
+      "found": 1,
+      "verify_mode": "exact",
+      "correct": true
+    },
+    {
+      "scenario": "10 scattered changed rows",
+      "drift_rows": 10,
+      "rows_compared": 39062,
+      "pct_of_table": 3.9062,
+      "segments_scanned": 177,
+      "engine_s": 2.206,
+      "in_sync": false,
+      "found": 10,
+      "verify_mode": "exact",
+      "correct": true
+    },
+    {
+      "scenario": "1,000 mixed (changed/missing/extra)",
+      "drift_rows": 1000,
+      "rows_compared": 253991,
+      "pct_of_table": 25.3991,
+      "segments_scanned": 97,
+      "engine_s": 2.182,
+      "in_sync": false,
+      "found": 1000,
+      "verify_mode": "exact",
+      "correct": true
+    },
+    {
+      "scenario": "100,000 scattered changed (10%)",
+      "drift_rows": 100000,
+      "rows_compared": 1000000,
+      "pct_of_table": 100.0,
+      "segments_scanned": 273,
+      "engine_s": 5.085,
+      "in_sync": false,
+      "found": 100000,
+      "verify_mode": "count",
+      "correct": true
+    },
+    {
+      "scenario": "contiguous gap: delete 400k..449,999 (50,000 rows)",
+      "drift_rows": 50000,
+      "rows_compared": 54688,
+      "pct_of_table": 5.4688,
+      "segments_scanned": 49,
+      "engine_s": 1.725,
+      "in_sync": false,
+      "found": 50000,
+      "verify_mode": "count",
+      "correct": true
+    },
+    {
+      "scenario": "100% changed (every amount)",
+      "drift_rows": 1000000,
+      "rows_compared": 1000000,
+      "pct_of_table": 100.0,
+      "segments_scanned": 273,
+      "engine_s": 5.89,
+      "in_sync": false,
+      "found": 1000000,
+      "verify_mode": "count",
+      "correct": true
+    }
+  ]
+}

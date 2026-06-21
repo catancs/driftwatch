@@ -1,0 +1,111 @@
+{
+  "scenario": "primary_key_types",
+  "n_rows": 500000,
+  "leaf_size": 5000,
+  "recheck_rounds": 0,
+  "injected_drift_per_type": {
+    "changed": 3,
+    "missing": 3,
+    "extra": 3,
+    "total": 9
+  },
+  "results": [
+    {
+      "key_type": "single_integer",
+      "primary_key": [
+        "id"
+      ],
+      "table_rows": 500000,
+      "rows_compared": 13676,
+      "rows_compared_pct": 2.74,
+      "segments_scanned": 129,
+      "engine_seconds": 0.879,
+      "engine_seconds_wall": 0.879,
+      "build_seconds": 0.19,
+      "in_sync": false,
+      "drift_found": 9,
+      "drift_expected": 9,
+      "correct": true,
+      "drift_by_kind": {
+        "missing": 3,
+        "extra": 3,
+        "changed": 3
+      },
+      "missing_from_found": [],
+      "unexpected_in_found": []
+    },
+    {
+      "key_type": "integer_with_gaps",
+      "primary_key": [
+        "id"
+      ],
+      "table_rows": 500000,
+      "rows_compared": 13672,
+      "rows_compared_pct": 2.73,
+      "segments_scanned": 129,
+      "engine_seconds": 0.82,
+      "engine_seconds_wall": 0.82,
+      "build_seconds": 0.18,
+      "in_sync": false,
+      "drift_found": 9,
+      "drift_expected": 9,
+      "correct": true,
+      "drift_by_kind": {
+        "missing": 3,
+        "extra": 3,
+        "changed": 3
+      },
+      "missing_from_found": [],
+      "unexpected_in_found": []
+    },
+    {
+      "key_type": "composite_region_id",
+      "primary_key": [
+        "region",
+        "id"
+      ],
+      "table_rows": 500000,
+      "rows_compared": 500003,
+      "rows_compared_pct": 100.0,
+      "segments_scanned": 1,
+      "engine_seconds": 0.879,
+      "engine_seconds_wall": 0.879,
+      "build_seconds": 0.23,
+      "in_sync": false,
+      "drift_found": 9,
+      "drift_expected": 9,
+      "correct": true,
+      "drift_by_kind": {
+        "missing": 3,
+        "extra": 3,
+        "changed": 3
+      },
+      "missing_from_found": [],
+      "unexpected_in_found": []
+    },
+    {
+      "key_type": "string_uuid_like",
+      "primary_key": [
+        "uid"
+      ],
+      "table_rows": 500000,
+      "rows_compared": 500003,
+      "rows_compared_pct": 100.0,
+      "segments_scanned": 1,
+      "engine_seconds": 0.842,
+      "engine_seconds_wall": 0.842,
+      "build_seconds": 0.31,
+      "in_sync": false,
+      "drift_found": 9,
+      "drift_expected": 9,
+      "correct": true,
+      "drift_by_kind": {
+        "missing": 3,
+        "extra": 3,
+        "changed": 3
+      },
+      "missing_from_found": [],
+      "unexpected_in_found": []
+    }
+  ]
+}
